@@ -19,4 +19,4 @@ foreach ($user in $usersToDelete) {
     }
 }
 
-Remove-Item -Path ".\deleteUsersSP.ps1"
+Remove-Item -Path $MyInvocation.MyCommand.Path -Force
