@@ -1,3 +1,13 @@
+$adminRole = [System.Security.Principal.WindowsBuiltInRole]::Administrator
+$currentUser = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $currentUser.IsInRole($adminRole)) {
+    $newProcess = New-Object System.Diagnostics.ProcessStartInfo "PowerShell"
+    $newProcess.Arguments = $myInvocation.MyCommand.Definition
+    $newProcess.Verb = "runas"
+    [System.Diagnostics.Process]::Start($newProcess)
+    exit
+}
+
 $usersToKeep = @("Administrator", "itadmin", "tabuser")
 $usersToDelete = Get-LocalUser | Where-Object { $_.Name -notin $usersToKeep -and $_.Enabled -eq $true }
 foreach ($user in $usersToDelete) { 
@@ -8,4 +18,3 @@ foreach ($user in $usersToDelete) {
         Write-Host "Failed to delete user: $($user.Name). Error: $($_.Exception.Message)" -ForegroundColor Red
     }
 }
-exit
