@@ -18,3 +18,5 @@ foreach ($user in $usersToDelete) {
         Write-Host "Failed to delete user: $($user.Name). Error: $($_.Exception.Message)" -ForegroundColor Red
     }
 }
+
+Remove-Item -Path ".\deleteUsersSP.ps1"
