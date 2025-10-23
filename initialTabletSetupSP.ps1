@@ -29,6 +29,51 @@ foreach ($user in $usersToDelete) {
     }
 }
 
+# Map network drive to S:
+New-PSDrive -Name "S" -PSProvider "FileSystem" -Root "\\dc02.ad.sensapure.com\sensa" -Persist
+
+$sourceFolder = "S:\IT\Toshiba FZ-G1"
+$destinationFolder = "C:\Apps"
+
+# Ensure the destination folder exists
+if (!(Test-Path -Path $destinationFolder)) {
+    New-Item -ItemType Directory -Path $destinationFolder
+}
+# Copy applications from network share to local drive
+Copy-Item -Path $sourceFolder\* -Destination $destinationFolder -Recurse -Force
+Expand-Archive -Path "C:\Apps\Honeywell*.zip" -DestinationPath "C:\Apps" -Force
+Expand-Archive -Path "C:\Apps\rover*.zip" -DestinationPath "C:\Apps\rover" -Force
+
+# Set wallpaper
+$wallpaperPath = "C:\Apps\SP_Wallpaper.jpg"
+Set-ItemProperty -Path "HKCU:\Control Panel\Desktop\" -Name 'Wallpaper' -Value $wallpaperPath
+RUNDLL32.EXE USER32.DLL,UpdatePerUserSystemParameters
+
+# Install applications silently
+
+# $logFile = "C:\Apps\install_log.log"
+# $errFile = "C:\Apps\install_error.log"
+# $installers = @(
+#     "C:\Apps\Reader_en_install.exe",
+#     "C:\Apps\Honeywell_2023.3_M-0.exe"
+# )
+# $msiInstallers = @(
+#     "C:\Apps\rover\rover-installer.msi",
+#     "C:\Apps\NinjaOne-Agent-InternalInfrastructure-MainOffice-Auto.msi"
+# )
+# foreach ($installer in $installers) { 
+#     Start-Process -FilePath $installer -ArgumentList "/S" -Wait -RedirectStandardOutput $logFile -RedirectStandardError $errFile
+# }
+# foreach ($msiInstaller in $msiInstallers) {
+#     $process = Start-Process msiexec.exe -ArgumentList "/i `"$msiInstaller`" /qn /norestart" -Wait -PassThru
+#     if ($process.ExitCode -ne 0) {
+#         Write-Host "Installation of $msiInstaller failed with exit code $($process.ExitCode)" -ForegroundColor Red
+#     }
+#     else {
+#         Write-Host "Successfully installed $msiInstaller" -ForegroundColor Green
+#     }
+# }
+
 # Rename computer based on last four digits of BIOS serial number
 $SerialNumber = (Get-WmiObject Win32_BIOS).SerialNumber
 $lastFour = $SerialNumber.Substring($SerialNumber.Length - 4)
