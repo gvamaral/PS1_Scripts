@@ -22,7 +22,8 @@ foreach ($user in $usersToDelete) {
 }
 
 # Map network drive to S:
-New-PSDrive -Name "S" -PSProvider "FileSystem" -Root "\\dc02.ad.sensapure.com\sensa" -Persist
+$cred = Get-Credential -Credential "tempadmin"
+New-PSDrive -Name "S" -PSProvider "FileSystem" -Root "\\dc02.ad.sensapure.com\sensa" -Credential $cred
 
 $sourceFolder = "S:\IT\Toshiba FZ-G1"
 $destinationFolder = "C:\Apps"
