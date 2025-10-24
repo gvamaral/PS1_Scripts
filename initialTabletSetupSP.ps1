@@ -8,6 +8,7 @@ if (-not $currentUser.IsInRole($adminRole)) {
     [System.Diagnostics.Process]::Start($newProcess)
     exit
 }
+
 # Create 'itadmin' user
 $Secure_String_Pwd = Read-Host -Prompt "Enter password for itadmin user" -AsSecureString
 New-LocalUser -Name 'itadmin' -Description 'Admin account for Sensapure Devices' -Password $Secure_String_Pwd
@@ -46,33 +47,9 @@ Expand-Archive -Path "C:\Apps\rover*.zip" -DestinationPath "C:\Apps\rover" -Forc
 
 # Set wallpaper
 $wallpaperPath = "C:\Apps\SP_Wallpaper.jpg"
-Set-ItemProperty -Path "HKCU:\Control Panel\Desktop\" -Name 'Wallpaper' -Value $wallpaperPath
-RUNDLL32.EXE USER32.DLL,UpdatePerUserSystemParameters
-
-# Install applications silently
-
-# $logFile = "C:\Apps\install_log.log"
-# $errFile = "C:\Apps\install_error.log"
-# $installers = @(
-#     "C:\Apps\Reader_en_install.exe",
-#     "C:\Apps\Honeywell_2023.3_M-0.exe"
-# )
-# $msiInstallers = @(
-#     "C:\Apps\rover\rover-installer.msi",
-#     "C:\Apps\NinjaOne-Agent-InternalInfrastructure-MainOffice-Auto.msi"
-# )
-# foreach ($installer in $installers) { 
-#     Start-Process -FilePath $installer -ArgumentList "/S" -Wait -RedirectStandardOutput $logFile -RedirectStandardError $errFile
-# }
-# foreach ($msiInstaller in $msiInstallers) {
-#     $process = Start-Process msiexec.exe -ArgumentList "/i `"$msiInstaller`" /qn /norestart" -Wait -PassThru
-#     if ($process.ExitCode -ne 0) {
-#         Write-Host "Installation of $msiInstaller failed with exit code $($process.ExitCode)" -ForegroundColor Red
-#     }
-#     else {
-#         Write-Host "Successfully installed $msiInstaller" -ForegroundColor Green
-#     }
-# }
+Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "Wallpaper" -Value $wallpaperPath
+Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "WallpaperStyle" -Value "2" # 2 = Stretch, 0 = Center, 6 = Fit, etc.
+gpupdate /force
 
 # Rename computer based on last four digits of BIOS serial number
 $SerialNumber = (Get-WmiObject Win32_BIOS).SerialNumber
