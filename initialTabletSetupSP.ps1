@@ -11,11 +11,11 @@ if (-not $currentUser.IsInRole($adminRole)) {
 
 # Create 'itadmin' user
 $Secure_String_Pwd = Read-Host -Prompt "Enter password for itadmin user" -AsSecureString
-New-LocalUser -Name 'itadmin' -Description 'Admin account for Sensapure Devices' -Password $Secure_String_Pwd
+New-LocalUser -Name 'itadmin' -Description 'Admin account for Sensapure Devices' -Password $Secure_String_Pwd -PasswordNeverExpires
 Add-LocalGroupMember -Group 'Administrators' -Member 'itadmin'
 
 # Create 'tabuser' user
-New-LocalUser -Name 'tabuser' -Description 'Account for Sensapure Tablets' -NoPassword
+New-LocalUser -Name 'tabuser' -Description 'Account for Sensapure Tablets' -NoPassword -PasswordNeverExpires -UserMayNotChangePassword
 Add-LocalGroupMember -Group 'Users' -Member 'tabuser'
 
 # Configure auto-login for 'tabuser'
