@@ -43,5 +43,9 @@ Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies
 Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "WallpaperStyle" -Value "2" # 2 = Stretch, 0 = Center, 6 = Fit, etc.
 gpupdate /force
 
+# Tested on the tablet and it did not show the wallpaper. Will have to come back to try different method.
+Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "Wallpaper" -Value $wallpaperPath 
+RUNDLL32.EXE user32.dll,UpdatePerUserSystemParameters
+
 # Clean up by removing the script itself
 Remove-Item -Path $MyInvocation.MyCommand.Path -Force
