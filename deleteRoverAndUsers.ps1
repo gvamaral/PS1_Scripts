@@ -26,6 +26,12 @@ $roverPath = "C:\Program Files (x86)\Zumasys"
 (Get-WmiObject Win32_Product -Filter "Name = 'Rover ERP'").Uninstall()
 Remove-Item -Path $roverPath -Recurse -Force -ErrorAction SilentlyContinue
 
+# Remove mapped network drives
+Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Root -like "\\*" } | ForEach-Object { Remove-PSDrive -Name $_.Name -Force }
+
+# Rename computer to default name
+$SerialNumber = (Get-WmiObject Win32_BIOS).SerialNumber
+Rename-Computer -NewName "TBR-$SerialNumber" -Force -Restart
 
 # Clean up by removing the script itself
 Remove-Item -Path $MyInvocation.MyCommand.Path -Force
