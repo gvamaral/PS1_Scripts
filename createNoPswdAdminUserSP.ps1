@@ -10,7 +10,7 @@ if (-not $currentUser.IsInRole($adminRole)) {
 }
 
 # Create 'admin' user with no password
-New-LocalUser -Name 'admin' -Description 'Admin account for Sensapure Devices' -NoPassword
+New-LocalUser -Name 'admin' -Description 'Admin account for Sensapure Devices' -NoPassword -PasswordNeverExpires
 Add-LocalGroupMember -Group 'Administrators' -Member 'admin'
 
 # Clean up by removing the script itself

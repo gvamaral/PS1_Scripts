@@ -8,7 +8,7 @@ if (-not $currentUser.IsInRole($adminRole)) {
     exit
 }
 
-New-LocalUser -Name 'tabuser' -Description 'Account for Sensapure Tablets' -NoPassword
+New-LocalUser -Name 'tabuser' -Description 'Account for Sensapure Tablets' -NoPassword -PasswordNeverExpires -UserMayNotChangePassword
 Add-LocalGroupMember -Group 'Users' -Member 'tabuser'
 
 Remove-Item -Path $MyInvocation.MyCommand.Path -Force

@@ -9,7 +9,7 @@ if (-not $currentUser.IsInRole($adminRole)) {
 }
 
 $Secure_String_Pwd = Read-Host -Prompt "Enter password for itadmin user" -AsSecureString
-New-LocalUser -Name 'itadmin' -Description 'Admin account for Sensapure Devices' -Password $Secure_String_Pwd
+New-LocalUser -Name 'itadmin' -Description 'Admin account for Sensapure Devices' -Password $Secure_String_Pwd  -PasswordNeverExpires
 Add-LocalGroupMember -Group 'Administrators' -Member 'itadmin'
 
 Remove-Item -Path $MyInvocation.MyCommand.Path -Force
