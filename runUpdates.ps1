@@ -12,6 +12,7 @@ if (-not $currentUser.IsInRole($adminRole)) {
 # Run Windows Update and install all available updates
 Install-Module -Name PSWindowsUpdate -Force -Confirm:$false
 Import-Module PSWindowsUpdate
+
 # Get list of available updates
 $updates = Get-WindowsUpdate
 if ($updates) {
@@ -20,5 +21,6 @@ if ($updates) {
 } else {
     Write-Host "No updates available." -ForegroundColor Green
 }
+
 # Clean up by removing the script itself
 Remove-Item -Path $MyInvocation.MyCommand.Path -Force
