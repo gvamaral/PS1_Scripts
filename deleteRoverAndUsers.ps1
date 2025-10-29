@@ -23,6 +23,7 @@ foreach ($user in $usersToDelete) {
 
 # Delete Rover application
 $roverPath = "C:\Program Files (x86)\Zumasys"
+Stop-Process -Name "Rover ERP" -Force -ErrorAction SilentlyContinue
 (Get-WmiObject Win32_Product -Filter "Name = 'Rover ERP'").Uninstall()
 Remove-Item -Path $roverPath -Recurse -Force -ErrorAction SilentlyContinue
 
