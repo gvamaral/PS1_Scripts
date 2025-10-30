@@ -16,7 +16,14 @@ if (-not (Test-Path -Path $folderPath -Filter "*.pdf")) {
 $pdfFiles = Get-ChildItem -Path $folderPath -Recurse -Filter "*.pdf" -File
 $existingTaggedFiles = $pdfFiles | Where-Object { $_.BaseName -like "*$suffix" }
 $existingUntaggedFiles = $pdfFiles | Where-Object { $_.BaseName -notlike "*$suffix" }
-$blockedFiles = $pdfFiles | Where-Object {Get-Item $_.FullName -Stream "Zone.Identifier" -ErrorAction SilentlyContinue}
+$blockedFiles = $pdfFiles | Where-Object {
+    try {
+        Get-Content -Path "$($_.FullName):Zone.Identifier" -ErrorAction SilentlyContinue | Out-Null
+        $true
+    } catch {
+        $false
+    }
+}
 
 Write-Host "Total PDFs: $($pdfFiles.Count)" -ForegroundColor Cyan
 Write-Host "Tagged PDFs: $($existingTaggedFiles.Count)" -ForegroundColor Cyan
@@ -37,8 +44,11 @@ if ($existingUntaggedFiles.Count -gt 0) {
         }
     }
     Write-Host "All $($existingUntaggedFiles.Count) PDFs have been unblocked and renamed with suffix '$suffix'." -ForegroundColor Green
+    Read-Host -Prompt "Click Enter to exit :)  "
+    exit
 }
 else {
     Write-Host "All PDF files already have the '$suffix' suffix." -ForegroundColor Green
+    Read-Host -Prompt "Click Enter to exit :)  "
     exit
 }
