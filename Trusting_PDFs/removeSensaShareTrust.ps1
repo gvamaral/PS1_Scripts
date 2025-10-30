@@ -8,7 +8,7 @@ $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings\Zo
 $domain = $networkShare -replace "\\", ""
 
 # Create the registry key for the domain
-if (-not (Test-Path "$regPath\$domain")) {
+if (Test-Path "$regPath\$domain") {
     # Remove the server from the Local Intranet zone
     Remove-Item -Path "$regPath\$domain" -Recurse -Force
     Write-Output "The network share '$networkShare' has been removed from the Local Intranet zone."
