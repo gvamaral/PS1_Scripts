@@ -1,3 +1,5 @@
+$start = Get-Date
+
 $suffix = "_UB"
 $folderPath = "S:\Raw Material Library"
 
@@ -43,7 +45,13 @@ if ($existingUntaggedFiles.Count -gt 0) {
             Write-Host "Failed to unblock file: $($file.Name). Error: $($file.Exception.Message)" -ForegroundColor Red
         }
     }
+    $end = Get-Date
+    $duration = $end - $start
+    $minutes = [int]$duration.TotalMinutes
+    $seconds = $duration.Seconds
+
     Write-Host "All $($existingUntaggedFiles.Count) PDFs have been unblocked and renamed with suffix '$suffix'." -ForegroundColor Green
+    Write-Host "took {0:D2}:{1:D2} to process {3:D2} pdfs" -f $minutes, $seconds, $pdfFiles.Count -ForegroundColor Violet
     Read-Host -Prompt "Click Enter to exit :)  "
     exit
 }
