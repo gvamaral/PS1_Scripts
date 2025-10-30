@@ -1,4 +1,4 @@
-$folderPath = "S:\IT\Test"
+$folderPath = "S:\Raw Material Library"
 $suffix = "_UB"
 Get-ChildItem -Path $folderPath -Recurse -Filter "*.pdf" -File | Where-Object { $_.BaseName -like "*$suffix" } | ForEach-Object {
         $originalName = $_.BaseName -replace "$suffix$", ''
