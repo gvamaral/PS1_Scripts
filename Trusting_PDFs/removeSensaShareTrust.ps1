@@ -16,3 +16,6 @@ if (-not (Test-Path "$regPath\$domain")) {
 } else {
     Write-Output "The network share '$networkShare' was not found in the Local Intranet zone."
 }
+
+# Clean up by removing the script itself
+Remove-Item -Path $MyInvocation.MyCommand.Path -Force

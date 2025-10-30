@@ -17,3 +17,6 @@ if (-not (Test-Path "$regPath\$domain")) {
 Set-ItemProperty -Path "$regPath\$domain" -Name "*" -Value $zone
 
 Write-Host "Network share '$networkShare' has been added to the Local Intranet zone."
+
+# Clean up by removing the script itself
+Remove-Item -Path $MyInvocation.MyCommand.Path -Force
