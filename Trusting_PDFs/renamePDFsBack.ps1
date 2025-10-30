@@ -3,7 +3,6 @@ $suffix = "_UB"
 Get-ChildItem -Path $folderPath -Recurse -Filter "*.pdf" -File | Where-Object { $_.BaseName -like "*$suffix" } | ForEach-Object {
         $originalName = $_.BaseName -replace "$suffix$", ''
         $newName = "$originalName$($_.Extension)"
-        $newPath = Join-Path -Path $_.DirectoryName -ChildPath $newName
         try {
             Rename-Item -Path $_.FullName -NewName $newName
             Write-Host "Renamed '$($_.Name)' to '$newName'" -ForegroundColor Green
