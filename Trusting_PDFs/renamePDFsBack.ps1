@@ -17,7 +17,7 @@ Get-ChildItem -Path $folderPath -Recurse -Filter "*.pdf" -File | Where-Object { 
                 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
             }
             # Append log entry to the log file
-            Add-Content -Path $logPath -Value $logEntry -Apend
+            Add-Content -Path $logPath -Value $logEntry
         } 
         catch {
             # Log Write-Host above to a log file
@@ -29,7 +29,7 @@ Get-ChildItem -Path $folderPath -Recurse -Filter "*.pdf" -File | Where-Object { 
                 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
             }
             # Append log entry to the log file
-            Add-Content -Path $logPath -Value $logEntry -Apend
+            Add-Content -Path $logPath -Value $logEntry
             Write-Host "Failed to rename file: $($_.FullName). Error: $($_.Exception.Message)" -ForegroundColor Red
         }
     }

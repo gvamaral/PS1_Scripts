@@ -49,7 +49,7 @@ if ($existingUntaggedFiles.Count -gt 0) {
                 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
             }
             # Append log entry to the log file
-            Add-Content -Path $logPath -Value $logEntry -Apend
+            Add-Content -Path $logPath -Value $logEntry
         } 
         catch {
             # Log Write-Host above to a log file
@@ -61,7 +61,7 @@ if ($existingUntaggedFiles.Count -gt 0) {
                 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
             }
             # Append log entry to the log file
-            Add-Content -Path $logPath -Value $logEntry -Apend
+            Add-Content -Path $logPath -Value $logEntry
             Write-Host "Failed to unblock file: $($file.Name). Error: $($file.Exception.Message)" -ForegroundColor Red
         }
     }
