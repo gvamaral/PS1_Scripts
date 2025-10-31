@@ -51,7 +51,7 @@ if ($existingUntaggedFiles.Count -gt 0) {
     $seconds = $duration.Seconds
 
     Write-Host "All $($existingUntaggedFiles.Count) PDFs have been unblocked and renamed with suffix '$suffix'." -ForegroundColor Green
-    Write-Host "took {0:D2}:{1:D2} to process {3:D2} pdfs" -f $minutes, $seconds, $pdfFiles.Count -ForegroundColor Violet
+    Write-Host "took {0:D2}:{1:D2} to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds -ForegroundColor DarkCyan
     Read-Host -Prompt "Click Enter to exit :)  "
     exit
 }
