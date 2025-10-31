@@ -37,7 +37,7 @@ $duration = $end - $start
 $minutes = [int]$duration.TotalMinutes
 $seconds = $duration.Seconds
 
-Write-Host ("took {0:D2}:{1:D2} to process {3:D2} pdfs" -f $minutes, $seconds, $pdfFiles.Count) -ForegroundColor Violet
+Write-Host ("took {0:D2}:{1:D2} to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds) -ForegroundColor Violet
 
 # Cleanup of the script itself
 Remove-Item -Path $MyInvocation.MyCommand.Path -Force
