@@ -41,8 +41,8 @@ $duration = $end - $start
 $minutes = [int]$duration.TotalMinutes
 $seconds = $duration.Seconds
 Write-Host ("took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds) -ForegroundColor DarkCyan
-Add-Content -Path $badLogPath -Value ("took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds)
-Add-Content -Path $goodLogPath -Value ("took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds)
+Add-Content -Path $badLogPath -Value ("$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds)
+Add-Content -Path $goodLogPath -Value ("$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds)
 
 # Clean up by removing the script itself
 Remove-Item -Path $MyInvocation.MyCommand.Path -Force
