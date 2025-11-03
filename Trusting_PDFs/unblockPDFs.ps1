@@ -23,6 +23,11 @@ if (-not (Test-Path -Path $folderPath -Filter "*.pdf")) {
     exit
 }
 
+$logStart = ("---- $(Get-Date -Format 'yyyy-MM-dd') ---- Start of Run ---- $(Get-Date -Format 'HH:mm:ss') ----" )
+# Append log entry to the log file
+Add-Content -Path $badLogPath -Value $logStart
+Add-Content -Path $goodLogPath -Value $logStart
+
 $pdfFiles = Get-ChildItem -Path $folderPath -Recurse -Filter "*.pdf" -File
 $existingTaggedFiles = $pdfFiles | Where-Object { $_.BaseName -like "*$suffix" }
 $existingUntaggedFiles = $pdfFiles | Where-Object { $_.BaseName -notlike "*$suffix" }
@@ -94,7 +99,12 @@ if ($existingUntaggedFiles.Count -gt 0) {
     Add-Content -Path $badLogPath -Value $logEntry
     Add-Content -Path $goodLogPath -Value $logEntry
     Read-Host -Prompt "Click Enter to exit :)  "
-    
+
+    $logEnd = ("---- $(Get-Date -Format 'yyyy-MM-dd') ---- End of Run ---- $(Get-Date -Format 'HH:mm:ss') ----" )
+    # Append log entry to the log file
+    Add-Content -Path $badLogPath -Value $logEnd
+    Add-Content -Path $goodLogPath -Value $logEnd
+
     # Clean up by removing the script itself
     Remove-Item -Path $MyInvocation.MyCommand.Path -Force
     exit
@@ -104,18 +114,23 @@ else {
     $duration = $end - $start
     $minutes = [int]$duration.TotalMinutes
     $seconds = $duration.Seconds
-    Write-Host ("took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds) -ForegroundColor DarkCyan
     Write-Host "All PDF files already have the '$suffix' suffix." -ForegroundColor Green
+    Write-Host ("took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds) -ForegroundColor DarkCyan
 
     # Log Write-Host above to a log file
-    $logEntry = ("$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds)
     $logEntry2 = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - All PDF files already have the '$suffix' suffix."
+    $logEntry = ("$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds)
     # Append log entry to the log file
     Add-Content -Path $badLogPath -Value $logEntry
     Add-Content -Path $badLogPath -Value $logEntry2
     Add-Content -Path $goodLogPath -Value $logEntry
     Add-Content -Path $goodLogPath -Value $logEntry2
     Read-Host -Prompt "Click Enter to exit :)  "
+
+    $logEnd = ("---- $(Get-Date -Format 'yyyy-MM-dd') ---- End of Run ---- $(Get-Date -Format 'HH:mm:ss') ----" )
+    # Append log entry to the log file
+    Add-Content -Path $badLogPath -Value $logEnd
+    Add-Content -Path $goodLogPath -Value $logEnd
     
     # Clean up by removing the script itself
     Remove-Item -Path $MyInvocation.MyCommand.Path -Force

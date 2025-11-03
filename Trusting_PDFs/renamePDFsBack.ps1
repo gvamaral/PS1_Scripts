@@ -1,10 +1,16 @@
 $start = Get-Date
 
 $folderPath = "S:\Raw Material Library"
-$pdfFiles = Get-ChildItem -Path $folderPath -Recurse -Filter "*.pdf" -File
 $badLogPath = "C:\Users\$env:USERNAME\Documents\pdf_unblock_log\rename_log_bad.txt"
 $goodLogPath = "C:\Users\$env:USERNAME\Documents\pdf_unblock_log\rename_log_good.txt"
 $suffix = "_UB"
+
+$logStart = ("---- $(Get-Date -Format 'yyyy-MM-dd') ---- Start of Run ---- $(Get-Date -Format 'HH:mm:ss') ----" )
+# Append log entry to the log file
+Add-Content -Path $badLogPath -Value $logStart
+Add-Content -Path $goodLogPath -Value $logStart
+
+$pdfFiles = Get-ChildItem -Path $folderPath -Recurse -Filter "*.pdf" -File
 
 # Create log directory if it doesn't exist
 $logDir = Split-Path -Path $badLogPath
@@ -44,6 +50,11 @@ $seconds = $duration.Seconds
 Write-Host ("took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds) -ForegroundColor DarkCyan
 Add-Content -Path $badLogPath -Value ("$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds)
 Add-Content -Path $goodLogPath -Value ("$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds)
+
+$logEnd = ("---- $(Get-Date -Format 'yyyy-MM-dd') ---- End of Run ---- $(Get-Date -Format 'HH:mm:ss') ----" )
+# Append log entry to the log file
+Add-Content -Path $badLogPath -Value $logEnd
+Add-Content -Path $goodLogPath -Value $logEnd
 
 # Clean up by removing the script itself
 Remove-Item -Path $MyInvocation.MyCommand.Path -Force
