@@ -6,7 +6,7 @@ $goodLogPath = "C:\Users\$env:USERNAME\Documents\pdf_unblock_log\unblock_log_goo
 $badLogPath = "C:\Users\$env:USERNAME\Documents\pdf_unblock_log\unblock_log_bad.txt"
 
 # Create log directory if it doesn't exist
-$logDir = Split-Path -Path $logPath
+$logDir = Split-Path -Path $badLogPath
 if (-not (Test-Path -Path $logDir)) {
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 }
