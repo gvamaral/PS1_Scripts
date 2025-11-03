@@ -1,6 +1,7 @@
 $start = Get-Date
 
 $folderPath = "S:\Raw Material Library"
+$pdfFiles = Get-ChildItem -Path $folderPath -Recurse -Filter "*.pdf" -File
 $badLogPath = "C:\Users\$env:USERNAME\Documents\pdf_unblock_log\rename_log_bad.txt"
 $goodLogPath = "C:\Users\$env:USERNAME\Documents\pdf_unblock_log\rename_log_good.txt"
 $suffix = "_UB"
@@ -11,7 +12,7 @@ if (-not (Test-Path -Path $logDir)) {
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 }
 
-Get-ChildItem -Path $folderPath -Recurse -Filter "*.pdf" -File | 
+$pdfFiles | 
 Where-Object { $_.BaseName -like "*$suffix" } | 
 ForEach-Object {
     $originalName = $_.BaseName -replace "$suffix$", ''
