@@ -88,7 +88,7 @@ if ($existingUntaggedFiles.Count -gt 0) {
 
     Write-Host ("took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds) -ForegroundColor DarkCyan
     # Log Write-Host above to a log file
-    $logEntry = ("took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds)
+    $logEntry = ("$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds)
     # Append log entry to the log file
     Add-Content -Path $badLogPath -Value $logEntry
     Add-Content -Path $goodLogPath -Value $logEntry
@@ -108,7 +108,7 @@ else {
 
     # Log Write-Host above to a log file
     $logEntry = ("$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds)
-    $logEntry2 = "All PDF files already have the '$suffix' suffix."
+    $logEntry2 = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - All PDF files already have the '$suffix' suffix."
     # Append log entry to the log file
     Add-Content -Path $badLogPath -Value $logEntry
     Add-Content -Path $badLogPath -Value $logEntry2
