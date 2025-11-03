@@ -28,6 +28,9 @@ $logStart = ("---- $(Get-Date -Format 'yyyy-MM-dd') ---- Start of Run ---- $(Get
 Add-Content -Path $badLogPath -Value $logStart
 Add-Content -Path $goodLogPath -Value $logStart
 
+Write-Host "Starting to unblock and rename PDF files in $folderPath" -ForegroundColor White
+Write-Host "Reading files, please wait..." -ForegroundColor White
+
 $pdfFiles = Get-ChildItem -Path $folderPath -Recurse -Filter "*.pdf" -File
 $existingTaggedFiles = $pdfFiles | Where-Object { $_.BaseName -like "*$suffix" }
 $existingUntaggedFiles = $pdfFiles | Where-Object { $_.BaseName -notlike "*$suffix" }
