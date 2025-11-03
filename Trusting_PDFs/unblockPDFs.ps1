@@ -64,6 +64,7 @@ if ($existingUntaggedFiles.Count -gt 0) {
         }
     }
     Write-Host "All $($existingUntaggedFiles.Count) PDFs have been unblocked and renamed with suffix '$suffix'." -ForegroundColor Green
+    Write-Host "Confirming changes, this may take a bit..." -ForegroundColor White
     
     $end = Get-Date
     $duration = $end - $start
