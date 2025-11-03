@@ -6,7 +6,7 @@ $goodLogPath = "C:\Users\$env:USERNAME\Documents\pdf_unblock_log\rename_log_good
 $suffix = "_UB"
 
 # Create log directory if it doesn't exist
-$logDir = Split-Path -Path $logPath
+$logDir = Split-Path -Path $badLogPath
 if (-not (Test-Path -Path $logDir)) {
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 }
