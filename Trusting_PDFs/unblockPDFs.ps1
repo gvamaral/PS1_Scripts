@@ -43,10 +43,15 @@ $blockedFiles = $pdfFiles | Where-Object {
     }
 }
 
-Write-Host "Total PDFs: $($pdfFiles.Count)" -ForegroundColor Cyan
-Write-Host "Tagged PDFs: $($existingTaggedFiles.Count)" -ForegroundColor Cyan
-Write-Host "Untagged PDFs: $($existingUntaggedFiles.Count)" -ForegroundColor Cyan
-Write-Host "Blocked PDFs: $($blockedFiles.Count)" -ForegroundColor Cyan
+Add-Content -Path $goodLogPath -Value "Total PDFs: $($pdfFiles.Count)" -ForegroundColor Cyan
+Add-Content -Path $goodLogPath -Value "Tagged PDFs: $($existingTaggedFiles.Count)" -ForegroundColor Cyan
+Add-Content -Path $goodLogPath -Value "Untagged PDFs: $($existingUntaggedFiles.Count)" -ForegroundColor Cyan
+Add-Content -Path $goodLogPath -Value "Blocked PDFs: $($blockedFiles.Count)" -ForegroundColor Cyan
+
+Add-Content -Path $badLogPath -Value "Total PDFs: $($pdfFiles.Count)" -ForegroundColor Cyan
+Add-Content -Path $badLogPath -Value "Tagged PDFs: $($existingTaggedFiles.Count)" -ForegroundColor Cyan
+Add-Content -Path $badLogPath -Value "Untagged PDFs: $($existingUntaggedFiles.Count)" -ForegroundColor Cyan
+Add-Content -Path $badLogPath -Value "Blocked PDFs: $($blockedFiles.Count)" -ForegroundColor Cyan
 
 # Unblock and renames all non tagged PDF files in the folder
 if ($existingUntaggedFiles.Count -gt 0) {
@@ -94,6 +99,17 @@ if ($existingUntaggedFiles.Count -gt 0) {
     Write-Host "Tagged PDFs: $($existingTaggedFiles.Count)" -ForegroundColor Cyan
     Write-Host "Untagged PDFs: $($existingUntaggedFiles.Count)" -ForegroundColor Cyan
     Write-Host "Blocked PDFs: $($blockedFiles.Count)" -ForegroundColor Cyan
+    
+    Add-Content -Path $goodLogPath -Value "Total PDFs: $($pdfFiles.Count)" -ForegroundColor Cyan
+    Add-Content -Path $goodLogPath -Value "Tagged PDFs: $($existingTaggedFiles.Count)" -ForegroundColor Cyan
+    Add-Content -Path $goodLogPath -Value "Untagged PDFs: $($existingUntaggedFiles.Count)" -ForegroundColor Cyan
+    Add-Content -Path $goodLogPath -Value "Blocked PDFs: $($blockedFiles.Count)" -ForegroundColor Cyan
+
+    Add-Content -Path $badLogPath -Value "Total PDFs: $($pdfFiles.Count)" -ForegroundColor Cyan
+    Add-Content -Path $badLogPath -Value "Tagged PDFs: $($existingTaggedFiles.Count)" -ForegroundColor Cyan
+    Add-Content -Path $badLogPath -Value "Untagged PDFs: $($existingUntaggedFiles.Count)" -ForegroundColor Cyan
+    Add-Content -Path $badLogPath -Value "Blocked PDFs: $($blockedFiles.Count)" -ForegroundColor Cyan
+
 
     Write-Host ("took {0:D2}:{1:D2} m to process $($pdfFiles.Count) pdfs" -f $minutes, $seconds) -ForegroundColor DarkCyan
     # Log Write-Host above to a log file
