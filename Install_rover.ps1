@@ -16,6 +16,8 @@ if (Test-Path $roverPath) {
     Write-Host "Installing Rover from $roverPath"
     Start-Process "msiexec.exe" -ArgumentList "/i `"$roverPath`"" -Wait
     Write-Host "Rover 2.2.0 installation completed."
+    # Clean up by removing the script itself
+    Remove-Item -Path $MyInvocation.MyCommand.Path -Force
 } 
 else {
     if (Test-Path $roverZipPath) {
@@ -25,6 +27,8 @@ else {
             Write-Host "Installing Rover from extracted MSI at $roverPath"
             Start-Process "msiexec.exe" -ArgumentList "/i `"$roverPath`"" -Wait
             Write-Host "Rover 2.2.0 installation completed."
+            # Clean up by removing the script itself
+            Remove-Item -Path $MyInvocation.MyCommand.Path -Force
         } 
         else {
             Write-Error "Rover installer not found after extraction at $roverPath."
@@ -43,6 +47,8 @@ else {
                 Write-Host "Installing Rover from extracted MSI at $roverPath"
                 Start-Process "msiexec.exe" -ArgumentList "/i `"$roverPath`"" -Wait
                 Write-Host "Rover 2.2.0 installation completed."
+                # Clean up by removing the script itself
+                Remove-Item -Path $MyInvocation.MyCommand.Path -Force
             } 
             else {
                 Write-Error "Rover installer not found after extraction at $roverPath."
