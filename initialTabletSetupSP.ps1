@@ -9,6 +9,9 @@ if (-not $currentUser.IsInRole($adminRole)) {
     exit
 }
 
+# Disable the requirement for a password for local accounts
+Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LimitBlankPasswordUse" -Value 0
+
 # Create 'itadmin' user
 $Secure_String_Pwd = Read-Host -Prompt "Enter password for itadmin user" -AsSecureString
 New-LocalUser -Name 'itadmin' -Description 'Admin account for Sensapure Devices' -Password $Secure_String_Pwd -PasswordNeverExpires
@@ -19,7 +22,6 @@ New-LocalUser -Name 'tabuser' -Description 'Account for Sensapure Tablets' -NoPa
 Add-LocalGroupMember -Group 'Users' -Member 'tabuser'
 
 # Configure auto-login for 'tabuser'
-Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LimitBlankPasswordUse" -Value 0
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "AutoAdminLogon" -Value "1"
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultUsername" -Value "tabuser"
 Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "DefaultPassword" -ErrorAction SilentlyContinue
