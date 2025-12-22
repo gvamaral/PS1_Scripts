@@ -1,3 +1,7 @@
 ninjaOne_Tests
 ExchangeOnline
 *.log
+# Onboarding config & secrets
+config/
+*.sec
+*.clixml
