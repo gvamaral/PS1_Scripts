@@ -1,3 +1,4 @@
+# Not relevant anymore since we needed to change tablets to a different model.
 # Ensure the script is running with administrative privileges
 $adminRole = [System.Security.Principal.WindowsBuiltInRole]::Administrator
 $currentUser = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
