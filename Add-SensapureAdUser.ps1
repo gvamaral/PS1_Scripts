@@ -1,19 +1,19 @@
 
 <#
 .SYNOPSIS
-Creates a new Active Directory user in ad.sensapure.com with Sensapure defaults.
+Creates a new Active Directory user and exports onboarding info to JSON.
 
 .DESCRIPTION
-- Prompts for AD admin credentials at startup.
+- Prompts for AD admin credentials.
 - Collects First/Last Name, Job Title, Department, Start Date.
 - Company defaults to "Sensapure" unless -ConfirmNames is provided.
-- Sets Description as "Title - mm/dd/yy" with Start Date.
-- samAccountName: first initial + last; ensures uniqueness by progressively adding first-name letters (e.g., gamaral, gaamaral, gabamaral), then numbers only if needed.
+- Sets Description as "Title - mm/dd/yy".
+- samAccountName: first initial + last; ensures uniqueness by progressively adding first-name letters.
 - Enables account immediately; sets ChangePasswordAtLogon.
 - Temp password: auto-generated or manually entered; default stored encrypted (DPAPI) in .\config\defaultpwd.sec.
 - Adds user to "SensapureUsers" group.
-- Allows setting Manager using manager's samAccountName.
-- Safe for GitHub when config folder is git-ignored.
+- Prompts for OfficeType (HQ or Warehouse).
+- Exports onboarding info to config\last_onboarding.json for M365 script.
 
 .PARAMETER Server
 AD domain or DC to target. Default: ad.sensapure.com
@@ -35,9 +35,6 @@ When set, prompts to confirm Company, DisplayName, and samAccountName; otherwise
 
 .PARAMETER DryRun
 Preview actions without creating anything.
-
-.NOTES
-Author: Gabriel Amaral (with M365 Copilot)
 #>
 
 [CmdletBinding()]
@@ -166,9 +163,7 @@ function Choose-OU {
     }
 }
 
-function Sanitize-NamePart { 
-    param([string]$s) ($s -replace '[^a-zA-Z0-9]', '').ToLowerInvariant() 
-}
+function Sanitize-NamePart { param([string]$s) ($s -replace '[^a-zA-Z0-9]', '').ToLowerInvariant() }
 
 function Suggest-SamAccountNameBase {
     param([string]$First, [string]$Last)
@@ -203,10 +198,15 @@ function Ensure-UniqueSamProgressive {
 }
 
 function Get-ConfigDir {
-    $base = if ($PSScriptRoot) { $PSScriptRoot } else { Get-Location }
-    $dir  = Join-Path -Path $base -ChildPath 'config'
-    if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory | Out-Null }
-    $dir
+    # Robust script directory resolution
+    $base = $PSScriptRoot
+    if (-not $base) {
+        if ($MyInvocation.MyCommand.Path) { $base = Split-Path -Path $MyInvocation.MyCommand.Path -Parent }
+        else { $base = (Get-Location).Path }
+    }
+    $dir = Join-Path -Path $base -ChildPath 'config'
+    if (-not (Test-Path -Path $dir)) { New-Item -Path $dir -ItemType Directory | Out-Null }
+    return $dir
 }
 
 function Get-DefaultPasswordSecure {
@@ -231,7 +231,7 @@ function Get-DefaultPasswordSecure {
     $enc = ConvertFrom-SecureString -SecureString $secureNew
     Set-Content -Path $file -Value $enc -NoNewline
     Write-Host "Saved encrypted default temp password to $file" -ForegroundColor Green
-    $secureNew
+    return $secureNew
 }
 
 function Get-TempPasswordForRun {
@@ -246,13 +246,10 @@ function Get-TempPasswordForRun {
         return [PSCustomObject]@{ Secure = $secure; Plain = $plain }
     }
     $secureDefault = Get-DefaultPasswordSecure
-    [PSCustomObject]@{ Secure = $secureDefault; Plain = $null }
+    return [PSCustomObject]@{ Secure = $secureDefault; Plain = $null }
 }
 
-function Find-ADGroupByName {
-    param([string]$Name, [string]$Server, [pscredential]$Credential)
-    try { Get-ADGroup -Filter "Name -eq '$Name'" -Server $Server -Credential $Credential } catch { $null }
-}
+function Find-ADGroupByName { param([string]$Name,[string]$Server,[pscredential]$Credential) try { Get-ADGroup -Filter "Name -eq '$Name'" -Server $Server -Credential $Credential } catch { $null } }
 
 function Resolve-ManagerDN {
     param([string]$Server, [pscredential]$Credential)
@@ -262,23 +259,17 @@ function Resolve-ManagerDN {
         $mgr = Get-ADUser -Filter "SamAccountName -eq '$mgrSam'" -Server $Server -Credential $Credential -Properties DistinguishedName
         if ($mgr) { return $mgr.DistinguishedName }
         Write-Host "Manager not found by samAccountName '$mgrSam'." -ForegroundColor Yellow
-        $null
+        return $null
     } catch {
         Write-Host "Error locating manager: $($_.Exception.Message)" -ForegroundColor Yellow
-        $null
+        return $null
     }
 }
 
 function Export-OnboardingInfo {
-    param(
-        [string]$UPN,
-        [string]$OfficeType,
-        [string]$DisplayName,
-        [string]$SamAccountName
-    )
-    $dir = Join-Path -Path (if ($PSScriptRoot) { $PSScriptRoot } else { Get-Location }) -ChildPath 'config'
-    if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory | Out-Null }
-    $file = Join-Path $dir 'last_onboarding.json'
+    param([string]$UPN,[string]$OfficeType,[string]$DisplayName,[string]$SamAccountName)
+    $dir  = Get-ConfigDir
+    $file = Join-Path -Path $dir -ChildPath 'last_onboarding.json'
     $data = @{
         UserPrincipalName = $UPN
         OfficeType        = $OfficeType
@@ -290,18 +281,11 @@ function Export-OnboardingInfo {
     Write-Host "Exported onboarding info to $file" -ForegroundColor Green
 }
 
-
 # ----------------- Execution -----------------
 
-try { Ensure-ADModule } catch { Write-Error $_; exit 1 }
-
+Ensure-ADModule
 $AdminCred = Get-ADAdminCredential -Target $Server
-
-try { Get-ADDomain -Server $Server -Credential $AdminCred | Out-Null } 
-catch {
-    Write-Error "Could not connect to domain '$Server' with provided credentials: $($_.Exception.Message)"
-    exit 1
-}
+Get-ADDomain -Server $Server -Credential $AdminCred | Out-Null
 
 Write-Host ''
 Write-Host '--- New User Information ---' -ForegroundColor Green
@@ -309,32 +293,21 @@ $First       = Read-NonEmpty 'First name'
 $Last        = Read-NonEmpty 'Last name'
 $Title       = Read-NonEmpty 'Job title'
 $Dept        = Read-NonEmpty 'Department'
-# Company default: Sensapure (no prompt unless -ConfirmNames)
 $Company     = if ($ConfirmNames) { Read-NonEmpty 'Company' -Default 'Sensapure' } else { 'Sensapure' }
-$StartDate   = Read-Date     'Start date (e.g., 12/22/2025)'
-
+$StartDate   = Read-Date 'Start date (e.g., 12/22/2025)'
 $Description = "{0} - {1}" -f $Title, $StartDate.ToString('MM/dd/yy')
 
-# DisplayName default with optional confirm
 $defaultDisplay = "$First $Last"
 $DisplayName = if ($ConfirmNames) { Read-NonEmpty 'Display name' -Default $defaultDisplay } else { $defaultDisplay }
 
-# samAccountName: progressive uniqueness
 $defaultSamBase   = Suggest-SamAccountNameBase -First $First -Last $Last
 $defaultSamUnique = Ensure-UniqueSamProgressive -Server $Server -Credential $AdminCred -First $First -Last $Last
-if ($ConfirmNames) {
-    if ($defaultSamUnique -ne $defaultSamBase) {
-        Write-Host "Note: '$defaultSamBase' is in use. Suggesting '$defaultSamUnique'." -ForegroundColor Yellow
-    }
-    $Sam = Read-NonEmpty 'samAccountName' -Default $defaultSamUnique
-} else {
-    $Sam = $defaultSamUnique
-    if ($defaultSamUnique -ne $defaultSamBase) {
-        Write-Host "Note: '$defaultSamBase' is in use. Using '$defaultSamUnique'." -ForegroundColor Yellow
-    }
+if ($ConfirmNames -and ($defaultSamUnique -ne $defaultSamBase)) {
+    Write-Host "Note: '$defaultSamBase' is in use. Suggesting '$defaultSamUnique'." -ForegroundColor Yellow
 }
+$Sam = if ($ConfirmNames) { Read-NonEmpty 'samAccountName' -Default $defaultSamUnique } else { $defaultSamUnique }
 
-$OU = Choose-OU -Server $Server -Credential $AdminCred -PreferredDN $DefaultOU
+$OU  = Choose-OU -Server $Server -Credential $AdminCred -PreferredDN $DefaultOU
 $UPN = "$Sam@$UPNSuffix"
 
 $pwdInfo   = Get-TempPasswordForRun -TempPassword $TempPassword -UseAutoPassword:$UseAutoPassword
@@ -343,7 +316,7 @@ $plainPwd  = $pwdInfo.Plain
 
 $ManagerDN = Resolve-ManagerDN -Server $Server -Credential $AdminCred
 
-# Prompt for OfficeType
+# OfficeType prompt
 $OfficeType = Read-Host "Office type (HQ or Warehouse)"
 if ($OfficeType -notin @('HQ','Warehouse')) {
     Write-Warning "Invalid OfficeType. Defaulting to HQ."
@@ -365,16 +338,8 @@ Write-Host " OU:             $OU"
 Write-Host " Server:         $Server"
 Write-Host ' Enabled:        True'
 Write-Host ' Change PW @Logon: True'
-if ($plainPwd) {
-    Write-Host " Temp Password:  $plainPwd" -ForegroundColor Yellow 
-} else { 
-    Write-Host ' Temp Password:  (using encrypted default from config)' -ForegroundColor Yellow
-}
-if ($ManagerDN) {
-    Write-Host " Manager DN:     $ManagerDN"
-} else {
-    Write-Host ' Manager DN:     (none set)'
-}
+if ($plainPwd) { Write-Host " Temp Password:  $plainPwd" -ForegroundColor Yellow } else { Write-Host ' Temp Password:  (using encrypted default from config)' -ForegroundColor Yellow }
+if ($ManagerDN) { Write-Host " Manager DN:     $ManagerDN" } else { Write-Host " Manager DN:     (none set)" }
 
 if ($DryRun) {
     Write-Warning 'DryRun mode - no changes will be made.'
@@ -405,31 +370,23 @@ try {
     New-ADUser @commonParams @adParams
     Write-Host "User '$DisplayName' created successfully." -ForegroundColor Green
 
-    $user = $null
-    try { $user = Get-ADUser -Identity $Sam @commonParams } catch {}
-
     $grp = Find-ADGroupByName -Name 'SensapureUsers' -Server $Server -Credential $AdminCred
-    if ($grp -and $user) {
-        try {
-            Add-ADGroupMember -Identity $grp -Members $user @commonParams
-            Write-Host "Added '$Sam' to group 'SensapureUsers'." -ForegroundColor Green
-        } catch {
-            Write-Warning "Could not add user to 'SensapureUsers': $($_.Exception.Message)"
-        }
-    } elseif (-not $grp) {
-        Write-Warning "Group 'SensapureUsers' not found. Please add manually or adjust the script."
+    if ($grp) {
+        Add-ADGroupMember -Identity $grp -Members $Sam @commonParams
+        Write-Host "Added '$Sam' to group 'SensapureUsers'." -ForegroundColor Green
     } else {
-        Write-Warning "User object not found after creation. Group membership not set."
+        Write-Warning "Group 'SensapureUsers' not found."
     }
+
     Export-OnboardingInfo -UPN $UPN -OfficeType $OfficeType -DisplayName $DisplayName -SamAccountName $Sam
 
     if ($plainPwd) {
         Write-Host ''
-        Write-Host 'Provide this temporary password to the new hire. They will be prompted to change it at first logon:' -ForegroundColor Green
+        Write-Host 'Provide this temporary password to the new hire:' -ForegroundColor Green
         Write-Host $plainPwd -ForegroundColor Cyan
     } else {
         Write-Host ''
-        Write-Host 'Using the default temp password from the encrypted config file. (Not displayed here)' -ForegroundColor Green
+        Write-Host 'Using the default temp password from the encrypted config file.' -ForegroundColor Green
     }
 } catch {
     Write-Error "Failed to create user: $($_.Exception.Message)"
