@@ -269,6 +269,28 @@ function Resolve-ManagerDN {
     }
 }
 
+function Export-OnboardingInfo {
+    param(
+        [string]$UPN,
+        [string]$OfficeType,
+        [string]$DisplayName,
+        [string]$SamAccountName
+    )
+    $dir = Join-Path -Path (if ($PSScriptRoot) { $PSScriptRoot } else { Get-Location }) -ChildPath 'config'
+    if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory | Out-Null }
+    $file = Join-Path $dir 'last_onboarding.json'
+    $data = @{
+        UserPrincipalName = $UPN
+        OfficeType        = $OfficeType
+        DisplayName       = $DisplayName
+        SamAccountName    = $SamAccountName
+    }
+    $json = $data | ConvertTo-Json -Depth 3
+    Set-Content -Path $file -Value $json -Encoding UTF8
+    Write-Host "Exported onboarding info to $file" -ForegroundColor Green
+}
+
+
 # ----------------- Execution -----------------
 
 try { Ensure-ADModule } catch { Write-Error $_; exit 1 }
@@ -321,6 +343,13 @@ $plainPwd  = $pwdInfo.Plain
 
 $ManagerDN = Resolve-ManagerDN -Server $Server -Credential $AdminCred
 
+# Prompt for OfficeType
+$OfficeType = Read-Host "Office type (HQ or Warehouse)"
+if ($OfficeType -notin @('HQ','Warehouse')) {
+    Write-Warning "Invalid OfficeType. Defaulting to HQ."
+    $OfficeType = 'HQ'
+}
+
 Write-Host ''
 Write-Host 'Review:' -ForegroundColor Cyan
 Write-Host " Name:           $DisplayName"
@@ -328,6 +357,7 @@ Write-Host " Given/Surname:  $First / $Last"
 Write-Host " Title:          $Title"
 Write-Host " Department:     $Dept"
 Write-Host " Company:        $Company"
+Write-Host " OfficeType:     $OfficeType"
 Write-Host " Description:    $Description"
 Write-Host " samAccountName: $Sam"
 Write-Host " UPN:            $UPN"
@@ -348,6 +378,7 @@ if ($ManagerDN) {
 
 if ($DryRun) {
     Write-Warning 'DryRun mode - no changes will be made.'
+    Export-OnboardingInfo -UPN $UPN -OfficeType $OfficeType -DisplayName $DisplayName -SamAccountName $Sam
     exit 0
 }
 
@@ -390,6 +421,7 @@ try {
     } else {
         Write-Warning "User object not found after creation. Group membership not set."
     }
+    Export-OnboardingInfo -UPN $UPN -OfficeType $OfficeType -DisplayName $DisplayName -SamAccountName $Sam
 
     if ($plainPwd) {
         Write-Host ''
