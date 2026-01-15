@@ -6,21 +6,29 @@ Runs AD onboarding first, then M365 onboarding, with clear separation and loggin
 .PARAMETER DryRun
 Preview end-to-end. Both child scripts run in -DryRun mode.
 
-.PARAMETER CreateCloudIfMissing
-When set, M365 script will create cloud user if missing (default behavior anyway).
-
 .PARAMETER UsageLocation
 UsageLocation for licensing. Default US.
 
+.PARAMETER TempPassword
+Override temp password for cloud user creation.
+
+.PARAMETER UseAutoPassword
+Generate random temp password for cloud user creation.
+
+.PARAMETER NoCreateCloud
+Do NOT auto-create cloud user if missing.
+
 .PARAMETER Verbose
-Show detailed messages from both scripts (common parameter).
+Show detailed messages from both scripts.
 #>
 
 [CmdletBinding()]
 param(
     [switch]$DryRun,
-    [switch]$CreateCloudIfMissing,
-    [string]$UsageLocation = 'US'
+    [string]$UsageLocation = 'US',
+    [string]$TempPassword,
+    [switch]$UseAutoPassword,
+    [switch]$NoCreateCloud
 )
 
 function Get-BaseDir {
@@ -46,6 +54,7 @@ try {
     if ($DryRun) { $adParams['DryRun'] = $true }
     if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Verbose')) { $adParams['Verbose'] = $true }
 
+    # Call AD script interactively so Get-Credential works
     & $adScript @adParams
     Log ("AD step completed." + ($(if ($DryRun) { " (DryRun)" } else { "" })))
 
@@ -64,8 +73,9 @@ try {
     }
     if ($DryRun) { $m365Params['DryRun'] = $true }
     if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Verbose')) { $m365Params['Verbose'] = $true }
-    # Default behavior of M365 script is to create cloud user if missing,
-    # so we do not have to pass a flag unless you add -NoCreateCloud in the future.
+    if ($TempPassword) { $m365Params['TempPassword'] = $TempPassword }
+    if ($UseAutoPassword) { $m365Params['UseAutoPassword'] = $true }
+    if ($NoCreateCloud) { $m365Params['NoCreateCloud'] = $true }
 
     & $m365Script @m365Params
     Log ("M365 step completed." + ($(if ($DryRun) { " (DryRun)" } else { "" })))
