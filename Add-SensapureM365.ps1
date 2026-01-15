@@ -4,21 +4,22 @@
 Licenses a user and adds cloud groups via Microsoft Graph; creates the cloud user if missing.
 
 .DESCRIPTION
-- Reads onboarding info from config\last_onboarding.json (Cloud UPN, OfficeType, etc.).
+- Reads onboarding info from config\last_onboarding.json (Cloud UPN, OfficeType, DisplayName, alias).
 - Connects to Microsoft Graph (delegated).
 - If the user does not exist in Entra ID:
    - Creates the cloud user by default using the temp password from config\defaultpwd.sec,
      unless overridden via -TempPassword or -UseAutoPassword.
+   - In -DryRun, simulates creation so the preview can continue (no throw).
 - Sets UsageLocation (required for licensing).
 - Assigns Microsoft 365 Business Standard if available (String ID: O365_BUSINESS_PREMIUM).
 - Adds to All Employees and either Sensapure Team (HQ) or Production (Warehouse).
-- Logs to config\onboarding.log and supports -Verbose output.
+- Logs to config\onboarding.log; supports -Verbose output.
 
 .PARAMETER ConfigFile
 Path to JSON exported by the AD script. Default: config\last_onboarding.json
 
 .PARAMETER SkuPartNumber
-License SKU String ID. Default: O365_BUSINESS_PREMIUM (Business Standard)
+License SKU String ID. Default: O365_BUSINESS_PREMIUM
 
 .PARAMETER SkuId
 License GUID (optional). If provided, overrides SkuPartNumber
@@ -33,19 +34,10 @@ Plaintext temp password override for cloud user creation (if needed).
 Generate a random strong temp password for cloud user creation (if needed).
 
 .PARAMETER NoCreateCloud
-Do NOT auto-create the cloud user if missing (default is to create).
+Do NOT auto-create the cloud user if missing (default behavior is to create).
 
 .PARAMETER DryRun
 Preview actions without making changes.
-
-.EXAMPLE
-.\Add-SensapureM365.ps1 -DryRun -Verbose
-
-.EXAMPLE
-.\Add-SensapureM365.ps1 -Verbose
-
-.EXAMPLE
-.\Add-SensapureM365.ps1 -TempPassword 'Welcome123!!!' -Verbose
 #>
 
 [CmdletBinding()]
@@ -92,7 +84,7 @@ function Ensure-GraphModule {
 
 function Connect-GraphSafe {
     $scopes = @('User.ReadWrite.All','Organization.Read.All','Directory.ReadWrite.All','Group.ReadWrite.All')
-    Connect-MgGraph -Scopes $scopes
+    Connect-MgGraph -Scopes $scopes -NoWelcome
     Log "Connected to Microsoft Graph."
 }
 
@@ -139,9 +131,7 @@ function Get-TempPasswordPlain {
     # Default: read from encrypted defaultpwd.sec and convert to plaintext for Graph (in-memory)
     $secure = Get-DefaultPasswordSecure
     $plain  = (New-Object System.Net.NetworkCredential('', $secure)).Password
-    if ([string]::IsNullOrWhiteSpace($plain)) {
-        throw "Unable to recover plaintext from default password vault."
-    }
+    if ([string]::IsNullOrWhiteSpace($plain)) { throw "Unable to recover plaintext from default password vault." }
     return $plain
 }
 
@@ -209,21 +199,23 @@ try { $user = Get-MgUser -UserId $CloudUPN -Property Id,DisplayName,UserPrincipa
 
 # Create if missing (default behavior unless -NoCreateCloud)
 if (-not $user -and -not $NoCreateCloud) {
-    $plainPwd = Get-TempPasswordPlain -TempPassword $TempPassword -UseAutoPassword:$UseAutoPassword
-    $body = @{
-        accountEnabled    = $true
-        displayName       = $DisplayName
-        mailNickname      = $MailNickname
-        userPrincipalName = $CloudUPN
-        passwordProfile   = @{
-            forceChangePasswordNextSignIn = $true
-            password = $plainPwd
-        }
-    }
     if ($DryRun) {
         Write-Warning "DryRun  would create cloud user '$CloudUPN'."
         Log "DryRun: would create cloud user $CloudUPN"
+        # Simulate so the rest of DryRun preview can continue
+        $user = [PSCustomObject]@{ Id = 'DRYRUN'; UserPrincipalName = $CloudUPN }
     } else {
+        $plainPwd = Get-TempPasswordPlain -TempPassword $TempPassword -UseAutoPassword:$UseAutoPassword
+        $body = @{
+            accountEnabled    = $true
+            displayName       = $DisplayName
+            mailNickname      = $MailNickname
+            userPrincipalName = $CloudUPN
+            passwordProfile   = @{
+                forceChangePasswordNextSignIn = $true
+                password = $plainPwd
+            }
+        }
         New-MgUser -BodyParameter $body | Out-Null
         Write-Host "Created cloud user $CloudUPN." -ForegroundColor Green
         Log "Cloud user created: $CloudUPN"
@@ -234,7 +226,9 @@ if (-not $user -and -not $NoCreateCloud) {
 }
 
 # If still not found, stop
-if (-not $user) { throw "User '$CloudUPN' not found in Entra ID and auto-create disabled. Re-run without -NoCreateCloud or verify the user." }
+if (-not $user) {
+    throw "User '$CloudUPN' not found in Entra ID and auto-create disabled. Re-run without -NoCreateCloud or verify the user."
+}
 
 # Resolve SKU and groups
 $skuInfo = Resolve-Sku -SkuPartNumber $SkuPartNumber -SkuId $SkuId
@@ -268,3 +262,4 @@ if ($OfficeType -eq 'HQ') {
 
 Write-Host "Cloud onboarding completed for $($user.UserPrincipalName)." -ForegroundColor Green
 Log "M365 onboarding complete for $($user.UserPrincipalName)"
+
