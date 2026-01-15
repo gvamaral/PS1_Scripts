@@ -327,15 +327,22 @@ if (-not $DryRun) {
 if ($ManagerCloudUPN) {
     try {
         $mgr = Get-MgUser -UserId $ManagerCloudUPN -Property Id,UserPrincipalName -ErrorAction Stop
+
+        $body = @{
+            "@odata.id" = "https://graph.microsoft.com/v1.0/users/$($mgr.Id)"
+        }
+
         if (-not $DryRun) {
-            Set-MgUserManagerByRef -UserId $user.Id -RefUri ("https://graph.microsoft.com/v1.0/users/{0}" -f $mgr.Id)
+            Set-MgUserManagerByRef -UserId $user.Id -BodyParameter $body
             Log "Manager set to $($mgr.UserPrincipalName)"
             Write-Host "Manager set to $($mgr.UserPrincipalName)." -ForegroundColor Green
-        } else {
+        }
+        else {
             Log "DryRun: would set manager to $($mgr.UserPrincipalName)"
             Write-Host "DryRun: would set manager to $($mgr.UserPrincipalName)." -ForegroundColor Yellow
         }
-    } catch {
+    }
+    catch {
         Write-Warning "Manager '$ManagerCloudUPN' not found or cannot be set. Skipping."
         Log "Manager not set: $ManagerCloudUPN ($($_.Exception.Message))"
     }
@@ -373,4 +380,3 @@ if ($OfficeType -eq 'HQ') {
 
 Write-Host "Cloud onboarding completed for $($user.UserPrincipalName)." -ForegroundColor Green
 Log "M365 onboarding complete for $($user.UserPrincipalName)"
-
