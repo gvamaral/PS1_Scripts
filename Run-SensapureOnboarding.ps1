@@ -1,10 +1,10 @@
 
 <#
 .SYNOPSIS
-Runs AD onboarding first, then M365 onboarding, with clear separation and logging.
+Runs AD onboarding first (in a separate PowerShell window), then M365 onboarding.
 
 .PARAMETER DryRun
-Preview end-to-end. Both child scripts run in -DryRun mode.
+Preview end-to-end. Both scripts run in -DryRun mode.
 
 .PARAMETER UsageLocation
 UsageLocation for licensing. Default US.
@@ -49,13 +49,15 @@ try {
     $adScript = Join-Path $base 'Add-SensapureAdUser.ps1'
     if (-not (Test-Path $adScript)) { throw "AD script not found: $adScript" }
 
-    # Build clean splat for AD script
-    $adParams = @{}
-    if ($DryRun) { $adParams['DryRun'] = $true }
-    if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Verbose')) { $adParams['Verbose'] = $true }
+    # Build argument list for AD script
+    $adArgs = @()
+    if ($DryRun) { $adArgs += '-DryRun' }
+    if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Verbose')) { $adArgs += '-Verbose' }
 
-    # Call AD script interactively so Get-Credential works
-    & $adScript @adParams
+    # Launch AD script in a new PowerShell process so Get-Credential works
+    Write-Host "Launching AD onboarding in a new PowerShell window..." -ForegroundColor Cyan
+    Start-Process powershell.exe -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$adScript`"", $adArgs -Wait
+
     Log ("AD step completed." + ($(if ($DryRun) { " (DryRun)" } else { "" })))
 
     # JSON path
@@ -66,7 +68,7 @@ try {
     $m365Script = Join-Path $base 'Add-SensapureM365.ps1'
     if (-not (Test-Path $m365Script)) { throw "M365 script not found: $m365Script" }
 
-    # Build clean splat for M365 script
+    # Build splat for M365 script
     $m365Params = @{
         ConfigFile    = $jsonFile
         UsageLocation = $UsageLocation
