@@ -155,6 +155,14 @@ function Assign-License-IfAvailable {
         Log "No available licenses for $($SkuInfo.PartNumber)."
         return $false
     }
+
+    $currentLicenses = (Get-MgUserLicenseDetail -UserId $UserId).SkuId
+    if ($currentLicenses -contains $SkuInfo.SkuId) {
+        Write-Host "User already has license $($SkuInfo.PartNumber). Skipping." -ForegroundColor Yellow
+        Log "License already assigned: $($SkuInfo.PartNumber)"
+        return $false
+    }
+
     # Assign using the plain SKU GUID
     Set-MgUserLicense -UserId $UserId -AddLicenses @{ SkuId = $SkuInfo.SkuId } -RemoveLicenses @()
     Write-Host "Assigned license $($SkuInfo.PartNumber) to user." -ForegroundColor Green
@@ -214,6 +222,12 @@ function Add-User-To-Group {
 
     # Graph-supported group (Unified or Security)
     try {
+        $members = Get-MgGroupMember -GroupId $Group.Id -All | Select-Object -ExpandProperty Id
+        if ($members -contains $UserId) {
+            Write-Host "$UserUPN is already in '$($Group.DisplayName)'. Skipping." -ForegroundColor Yellow
+            Log "Skipped: $UserUPN already in $($Group.DisplayName)"
+            return
+        }
         New-MgGroupMember -GroupId $Group.Id -BodyParameter @{ "@odata.id"="https://graph.microsoft.com/v1.0/directoryObjects/$UserId"} -ErrorAction Stop | Out-Null
         Write-Host "Added $UserUPN to '$($Group.DisplayName)' <$($Group.Mail)>" -ForegroundColor Green
         Log "Added member: $UserUPN -> $($Group.DisplayName) <$($Group.Mail)>"
@@ -236,6 +250,12 @@ $CloudUPN     = $info.CloudUserPrincipalName
 $OfficeType   = $info.OfficeType
 $DisplayName  = $info.DisplayName
 $MailNickname = $info.CloudMailNickname
+$FirstName        = $info.FirstName
+$LastName         = $info.LastName
+$Department       = $info.Department
+$JobTitle         = $info.JobTitle
+$ManagerCloudUPN  = $info.ManagerCloudUPN
+
 
 if ([string]::IsNullOrWhiteSpace($CloudUPN)) { throw "CloudUserPrincipalName missing in $ConfigFile." }
 
@@ -264,6 +284,10 @@ if (-not $user -and -not $NoCreateCloud) {
                 forceChangePasswordNextSignIn = $true
                 password = $plainPwd
             }
+            givenName         = $FirstName
+            surname           = $LastName
+            department        = $Department
+            jobTitle          = $JobTitle
         }
         New-MgUser -BodyParameter $body | Out-Null
         Write-Host "Created cloud user $CloudUPN." -ForegroundColor Green
@@ -277,6 +301,44 @@ if (-not $user -and -not $NoCreateCloud) {
 # If still not found, stop
 if (-not $user) {
     throw "User '$CloudUPN' not found in Entra ID and auto-create disabled. Re-run without -NoCreateCloud or verify the user."
+}
+
+# Update attributes for new or existing users (skip in DryRun)
+if (-not $DryRun) {
+    $patch = @{}
+    if ($FirstName)   { $patch['givenName']  = $FirstName }
+    if ($LastName)    { $patch['surname']    = $LastName }
+    if ($Department)  { $patch['department'] = $Department }
+    if ($JobTitle)    { $patch['jobTitle']   = $JobTitle }
+
+    if ($patch.Count -gt 0) {
+        try {
+            Update-MgUser -UserId $user.Id @patch
+            Log "Updated user attributes: $(($patch.Keys -join ', '))"
+            Write-Host "Updated attributes for $($user.UserPrincipalName)." -ForegroundColor Green
+        } catch {
+            Write-Warning "Could not update user attributes: $($_.Exception.Message)"
+            Log "Update-MgUser failed: $($_.Exception.Message)"
+        }
+    }
+}
+
+# Set manager if provided and found (skip in DryRun)
+if ($ManagerCloudUPN) {
+    try {
+        $mgr = Get-MgUser -UserId $ManagerCloudUPN -Property Id,UserPrincipalName -ErrorAction Stop
+        if (-not $DryRun) {
+            Set-MgUserManagerByRef -UserId $user.Id -RefUri ("https://graph.microsoft.com/v1.0/users/{0}" -f $mgr.Id)
+            Log "Manager set to $($mgr.UserPrincipalName)"
+            Write-Host "Manager set to $($mgr.UserPrincipalName)." -ForegroundColor Green
+        } else {
+            Log "DryRun: would set manager to $($mgr.UserPrincipalName)"
+            Write-Host "DryRun: would set manager to $($mgr.UserPrincipalName)." -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Warning "Manager '$ManagerCloudUPN' not found or cannot be set. Skipping."
+        Log "Manager not set: $ManagerCloudUPN ($($_.Exception.Message))"
+    }
 }
 
 # Resolve SKU and groups
@@ -299,7 +361,7 @@ if ($DryRun) {
 Ensure-UsageLocation -UserId $user.Id -Location $UsageLocation
 
 # Assign license if available
-$null = Assign-License-IfAvailable -UserId $user.Id -SkuId $skuInfo
+$null = Assign-License-IfAvailable -UserId $user.Id -SkuInfo $skuInfo
 
 # Add to groups
 Add-User-To-Group -Group $grpAll -UserId $user.Id -UserUPN $user.UserPrincipalName

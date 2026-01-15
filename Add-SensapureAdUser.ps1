@@ -219,22 +219,49 @@ function Resolve-ManagerDN { param([string]$Server,[pscredential]$Credential)
     } catch { Write-Host "Error locating manager: $($_.Exception.Message)" -ForegroundColor Yellow; return $null }
 }
 
-function Export-OnboardingInfo { param([string]$ADUPN,[string]$CloudUPN,[string]$CloudAlias,[string]$OfficeType,[string]$DisplayName,[string]$SamAccountName)
+
+function Export-OnboardingInfo {
+    param(
+        [string]$ADUPN,
+        [string]$CloudUPN,
+        [string]$CloudAlias,
+        [string]$OfficeType,
+        [string]$DisplayName,
+        [string]$SamAccountName,
+        [string]$FirstName,
+        [string]$LastName,
+        [string]$Department,
+        [string]$JobTitle,
+        [string]$ManagerCloudUPN
+    )
     $dir  = Get-ConfigDir
     $file = Join-Path -Path $dir -ChildPath 'last_onboarding.json'
+
     $data = @{
-        UserPrincipalName        = $ADUPN           # on-prem AD UPN
-        CloudUserPrincipalName   = $CloudUPN        # first.last@sensapure.com
-        CloudMailNickname        = $CloudAlias      # first.last alias
+        # AD + Cloud identity
+        UserPrincipalName        = $ADUPN
+        CloudUserPrincipalName   = $CloudUPN
+        CloudMailNickname        = $CloudAlias
+        SamAccountName           = $SamAccountName
+
+        # HR/Org data
+        FirstName                = $FirstName
+        LastName                 = $LastName
+        Department               = $Department
+        JobTitle                 = $JobTitle
+        ManagerCloudUPN          = $ManagerCloudUPN
+
+        # Onboarding details
         OfficeType               = $OfficeType
         DisplayName              = $DisplayName
-        SamAccountName           = $SamAccountName
     }
+
     $json = $data | ConvertTo-Json -Depth 3
     Set-Content -Path $file -Value $json -Encoding UTF8
-    Log "Exported onboarding JSON for '$DisplayName' (ADUPN=$ADUPN, CloudUPN=$CloudUPN, OfficeType=$OfficeType)"
+    Log "Exported onboarding JSON for '$DisplayName' (CloudUPN=$CloudUPN, ManagerCloudUPN=$ManagerCloudUPN, OfficeType=$OfficeType)"
     Write-Host "Exported onboarding info to $file" -ForegroundColor Green
 }
+
 
 # ----------------- Execution -----------------
 
@@ -280,6 +307,23 @@ $plainPwd  = $pwdInfo.Plain
 
 $ManagerDN = Resolve-ManagerDN -Server $Server -Credential $AdminCred
 
+# Compute manager's Cloud UPN from AD manager (first.last@sensapure.com)
+$ManagerCloudUPN = $null
+if ($ManagerDN) {
+    try {
+        $mgr = Get-ADUser -Identity $ManagerDN -Server $Server -Credential $AdminCred -Properties GivenName,Surname
+        if ($mgr -and $mgr.GivenName -and $mgr.Surname) {
+            $mgrFirst = ($mgr.GivenName).ToLowerInvariant() -replace '[^a-z0-9]',''
+            $mgrLast  = ($mgr.Surname).ToLowerInvariant()  -replace '[^a-z0-9]',''
+            if ($mgrFirst -and $mgrLast) {
+                $ManagerCloudUPN = "$mgrFirst.$mgrLast@$CloudDomain"
+            }
+        }
+    } catch {
+        Log "Could not derive ManagerCloudUPN from AD manager: $($_.Exception.Message)"
+    }
+}
+
 # OfficeType prompt
 $OfficeType = Read-Host "Office type (HQ or Warehouse)"
 if ($OfficeType -notin @('HQ','Warehouse')) { Write-Warning "Invalid OfficeType. Defaulting to HQ."; $OfficeType='HQ' }
@@ -304,9 +348,36 @@ if ($ManagerDN) { Write-Host " Manager DN:     $ManagerDN" } else { Write-Host "
 Write-Host " Cloud UPN:      $CloudUPN"
 Log "Review: $DisplayName | ADUPN=$ADUPN | CloudUPN=$CloudUPN | OfficeType=$OfficeType"
 
+# Always export onboarding info before creation attempt
+
+Export-OnboardingInfo `
+    -ADUPN $ADUPN `
+    -CloudUPN $CloudUPN `
+    -CloudAlias $CloudAlias `
+    -OfficeType $OfficeType `
+    -DisplayName $DisplayName `
+    -SamAccountName $Sam `
+    -FirstName $First `
+    -LastName $Last `
+    -Department $Dept `
+    -JobTitle $Title `
+    -ManagerCloudUPN $ManagerCloudUPN
+
 if ($DryRun) {
     Write-Warning 'DryRun mode - no changes will be made.'
-    Export-OnboardingInfo -ADUPN $ADUPN -CloudUPN $CloudUPN -CloudAlias $CloudAlias -OfficeType $OfficeType -DisplayName $DisplayName -SamAccountName $Sam
+
+    Export-OnboardingInfo `
+        -ADUPN $ADUPN `
+        -CloudUPN $CloudUPN `
+        -CloudAlias $CloudAlias `
+        -OfficeType $OfficeType `
+        -DisplayName $DisplayName `
+        -SamAccountName $Sam `
+        -FirstName $First `
+        -LastName $Last `
+        -Department $Dept `
+        -JobTitle $Title `
+        -ManagerCloudUPN $ManagerCloudUPN
     Log "AD DryRun complete."
     exit 0
 }
@@ -343,8 +414,6 @@ try {
     } else {
         Write-Warning "Group 'SensapureUsers' not found."; Log "Group SensapureUsers not found."
     }
-
-    Export-OnboardingInfo -ADUPN $ADUPN -CloudUPN $CloudUPN -CloudAlias $CloudAlias -OfficeType $OfficeType -DisplayName $DisplayName -SamAccountName $Sam
 
     if ($plainPwd) {
         Write-Host ''; Write-Host 'Provide this temporary password to the new hire:' -ForegroundColor Green
