@@ -54,7 +54,7 @@ try {
         '-NoProfile',
         '-ExecutionPolicy', 'Bypass',
         # Keep the window open so you can see any messages during DryRun or errors; remove -NoExit later
-        '-NoExit',
+        # '-NoExit',
         '-File', $adScript
     )
     if ($DryRun) { $adArgs += '-DryRun' }

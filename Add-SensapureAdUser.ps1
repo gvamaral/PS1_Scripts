@@ -90,9 +90,10 @@ function Log {
 function Get-ADAdminCredential {
     param([string]$Target)
     Write-Host "Enter your AD admin credentials for '$Target'..."
-    $cred = Get-Credential -Message "Domain admin credentials for $Target"
-    if (-not $cred) { throw 'No credentials provided.' }
-    return $cred
+    $username = Read-Host "Username (e.g., ad\\admin or admin@ad.sensapure.com)"
+    $password = Read-Host "Password" -AsSecureString
+    if ([string]::IsNullOrWhiteSpace($username)) { throw 'No username provided.' }
+    return New-Object System.Management.Automation.PSCredential($username, $password)
 }
 
 function Read-NonEmpty { param([string]$Prompt,[string]$Default)
@@ -304,7 +305,7 @@ Write-Host " Cloud UPN:      $CloudUPN"
 Log "Review: $DisplayName | ADUPN=$ADUPN | CloudUPN=$CloudUPN | OfficeType=$OfficeType"
 
 if ($DryRun) {
-    Write-Warning 'DryRun mode — no changes will be made.'
+    Write-Warning 'DryRun mode - no changes will be made.'
     Export-OnboardingInfo -ADUPN $ADUPN -CloudUPN $CloudUPN -CloudAlias $CloudAlias -OfficeType $OfficeType -DisplayName $DisplayName -SamAccountName $Sam
     Log "AD DryRun complete."
     exit 0

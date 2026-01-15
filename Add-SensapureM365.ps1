@@ -146,34 +146,83 @@ function Ensure-UsageLocation {
 }
 
 function Assign-License-IfAvailable {
-    param([string]$UserId, [guid]$SkuId)
-    $sku = Get-MgSubscribedSku -SubscribedSkuId $SkuId
-    $avail = [int]$sku.PrepaidUnits.Enabled - [int]$sku.ConsumedUnits
-    if ($avail -le 0) {
-        Write-Warning "No available licenses for SKU $($sku.SkuPartNumber). Skipping assignment."
-        Log "No available licenses for $($sku.SkuPartNumber)."
+    param(
+        [Parameter(Mandatory=$true)][string]$UserId,
+        [Parameter(Mandatory=$true)][pscustomobject]$SkuInfo  # expects properties: SkuId, PartNumber, Available
+    )
+    if ($SkuInfo.Available -le 0) {
+        Write-Warning "No available licenses for SKU $($SkuInfo.PartNumber). Skipping assignment."
+        Log "No available licenses for $($SkuInfo.PartNumber)."
         return $false
     }
-    Set-MgUserLicense -UserId $UserId -AddLicenses @{ SkuId = $SkuId } -RemoveLicenses @()
-    Write-Host "Assigned license $($sku.SkuPartNumber) to user." -ForegroundColor Green
-    Log "License assigned: $($sku.SkuPartNumber)"
+    # Assign using the plain SKU GUID
+    Set-MgUserLicense -UserId $UserId -AddLicenses @{ SkuId = $SkuInfo.SkuId } -RemoveLicenses @()
+    Write-Host "Assigned license $($SkuInfo.PartNumber) to user." -ForegroundColor Green
+    Log "License assigned: $($SkuInfo.PartNumber)"
     return $true
 }
 
-function Get-GroupIdByMail {
+function Get-GroupByMail {
     param([string]$MailAddress)
-    $g = Get-MgGroup -Filter "mail eq '$MailAddress'" -Property Id,DisplayName,Mail
+    $g = Get-MgGroup -Filter "mail eq '$MailAddress'" -Property Id,DisplayName,Mail,GroupTypes,SecurityEnabled,MailEnabled
     if (-not $g) { throw "Group with mail '$MailAddress' not found." }
-    Log "Group resolved: $($g.DisplayName) <$MailAddress> Id=$($g.Id)"
-    $g.Id
+    Log "Group resolved: $($g.DisplayName) <$($g.Mail)> (Types=$($g.GroupTypes -join ','), MailEnabled=$($g.MailEnabled), SecurityEnabled=$($g.SecurityEnabled))"
+    return $g
 }
 
+
 function Add-User-To-Group {
-    param([string]$GroupId, [string]$UserId)
-    New-MgGroupMember -GroupId $GroupId -BodyParameter @{ "@odata.id" = "https://graph.microsoft.com/v1.0/directoryObjects/$UserId" } | Out-Null
-    Log "Added user $UserId to group $GroupId"
-    Write-Host "Added user to group $GroupId" -ForegroundColor Green
+    param(
+        [Parameter(Mandatory=$true)]$Group,         # full group object from Get-GroupByMail
+        [Parameter(Mandatory=$true)][string]$UserId,    # Directory object Id
+        [Parameter(Mandatory=$true)][string]$UserUPN    # for nicer messages
+    )
+
+    $isUnified  = $Group.GroupTypes -and ($Group.GroupTypes -contains 'Unified')
+    $isSecurity = [bool]$Group.SecurityEnabled
+    $isMailOnly = ($Group.MailEnabled -eq $true) -and ($isSecurity -eq $false) -and (-not $isUnified)  # DL
+
+    if ($isMailOnly) {
+        # Distribution List (DL) or mail-enabled-only group => use ExchangeOnline if available
+        if (Get-Module -ListAvailable -Name ExchangeOnlineManagement) {
+            try {
+                if (-not (Get-ConnectionInformation)) {
+                    Connect-ExchangeOnline -ShowBanner:$false | Out-Null
+                }
+            } catch {
+                Write-Warning "Could not connect to Exchange Online for DL update: $($_.Exception.Message)"
+                Log "EXO connect failed: $($_.Exception.Message)"
+                return
+            }
+
+            try {
+                # Use the group's primary mail and the user's UPN for membership
+                Add-DistributionGroupMember -Identity $Group.Mail -Member $UserUPN -ErrorAction Stop
+                Write-Host "Added $UserUPN to '$($Group.DisplayName)' <$($Group.Mail)> (Exchange DL)" -ForegroundColor Green
+                Log "Added $UserUPN to DL $($Group.DisplayName) <$($Group.Mail)>"
+            } catch {
+                Write-Warning "Failed to add $UserUPN to DL '$($Group.DisplayName)' <$($Group.Mail)>: $($_.Exception.Message)"
+                Log "Add DL member failed: $($_.Exception.Message)"
+            }
+            return
+        } else {
+            Write-Warning "Group '$($Group.DisplayName)' is a mail-enabled distribution list. Install ExchangeOnlineManagement and sign in to add members (Add-DistributionGroupMember). Skipping."
+            Log "Skipped DL membership for $($Group.DisplayName) <$($Group.Mail)> (EXO not available)."
+            return
+        }
+    }
+
+    # Graph-supported group (Unified or Security)
+    try {
+        New-MgGroupMember -GroupId $Group.Id -BodyParameter @{ "@odata.id"="https://graph.microsoft.com/v1.0/directoryObjects/$UserId"} -ErrorAction Stop | Out-Null
+        Write-Host "Added $UserUPN to '$($Group.DisplayName)' <$($Group.Mail)>" -ForegroundColor Green
+        Log "Added member: $UserUPN -> $($Group.DisplayName) <$($Group.Mail)>"
+    } catch {
+        Write-Warning "Failed to add $UserUPN to '$($Group.DisplayName)' <$($Group.Mail)>: $($_.Exception.Message)"
+        Log "Add member failed: $($_.Exception.Message)"
+    }
 }
+
 
 # ----------------- Execution -----------------
 
@@ -234,9 +283,9 @@ if (-not $user) {
 $skuInfo = Resolve-Sku -SkuPartNumber $SkuPartNumber -SkuId $SkuId
 Write-Host "License SKU: $($skuInfo.PartNumber) | Available=$($skuInfo.Available)" -ForegroundColor Cyan
 
-$allEmployeesId = Get-GroupIdByMail 'AllEmployees@sensapureflavors.com'
-$hqId           = Get-GroupIdByMail 'sensapureteam@sensapureflavors.com'
-$warehouseId    = Get-GroupIdByMail 'production@sensapure.com'
+$grpAll = Get-GroupByMail 'AllEmployees@sensapureflavors.com'
+$grpHQ  = Get-GroupByMail 'sensapureteam@sensapureflavors.com'
+$grpWH  = Get-GroupByMail 'production@sensapure.com'
 
 # DryRun preview
 if ($DryRun) {
@@ -250,14 +299,14 @@ if ($DryRun) {
 Ensure-UsageLocation -UserId $user.Id -Location $UsageLocation
 
 # Assign license if available
-$null = Assign-License-IfAvailable -UserId $user.Id -SkuId $skuInfo.SkuId
+$null = Assign-License-IfAvailable -UserId $user.Id -SkuId $skuInfo
 
 # Add to groups
-Add-User-To-Group -GroupId $allEmployeesId -UserId $user.Id
+Add-User-To-Group -Group $grpAll -UserId $user.Id -UserUPN $user.UserPrincipalName
 if ($OfficeType -eq 'HQ') {
-    Add-User-To-Group -GroupId $hqId -UserId $user.Id
+    Add-User-To-Group -Group $grpHQ -UserId $user.Id -UserUPN $user.UserPrincipalName
 } elseif ($OfficeType -eq 'Warehouse') {
-    Add-User-To-Group -GroupId $warehouseId -UserId $user.Id
+    Add-User-To-Group -Group $grpWH -UserId $user.Id -UserUPN $user.UserPrincipalName
 }
 
 Write-Host "Cloud onboarding completed for $($user.UserPrincipalName)." -ForegroundColor Green
