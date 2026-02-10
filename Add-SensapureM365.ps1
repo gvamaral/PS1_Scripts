@@ -179,63 +179,106 @@ function Get-GroupByMail {
 }
 
 
+
 function Add-User-To-Group {
     param(
-        [Parameter(Mandatory=$true)]$Group,         # full group object from Get-GroupByMail
-        [Parameter(Mandatory=$true)][string]$UserId,    # Directory object Id
-        [Parameter(Mandatory=$true)][string]$UserUPN    # for nicer messages
+        [Parameter(Mandatory=$true)]$Group,           # group object from Get-GroupByMail
+        [Parameter(Mandatory=$true)][string]$UserId,  # AAD ObjectId
+        [Parameter(Mandatory=$true)][string]$UserUPN  # user UPN for nicer messages
     )
 
     $isUnified  = $Group.GroupTypes -and ($Group.GroupTypes -contains 'Unified')
     $isSecurity = [bool]$Group.SecurityEnabled
-    $isMailOnly = ($Group.MailEnabled -eq $true) -and ($isSecurity -eq $false) -and (-not $isUnified)  # DL
+    $isMailOnly = ($Group.MailEnabled -eq $true) -and ($isSecurity -eq $false) -and (-not $isUnified)
 
-    if ($isMailOnly) {
-        # Distribution List (DL) or mail-enabled-only group => use ExchangeOnline if available
-        if (Get-Module -ListAvailable -Name ExchangeOnlineManagement) {
-            try {
-                if (-not (Get-ConnectionInformation)) {
-                    Connect-ExchangeOnline -ShowBanner:$false | Out-Null
-                }
-            } catch {
-                Write-Warning "Could not connect to Exchange Online for DL update: $($_.Exception.Message)"
-                Log "EXO connect failed: $($_.Exception.Message)"
+    if (-not $isMailOnly) {
+        # Graph-supported (M365 group or security group)
+        try {
+            $members = Get-MgGroupMember -GroupId $Group.Id -All | Select-Object -ExpandProperty Id
+            if ($members -contains $UserId) {
+                Write-Host "$UserUPN is already in '$($Group.DisplayName)'. Skipping." -ForegroundColor Yellow
+                Log "Skipped: $UserUPN already in $($Group.DisplayName)"
                 return
             }
-
-            try {
-                # Use the group's primary mail and the user's UPN for membership
-                Add-DistributionGroupMember -Identity $Group.Mail -Member $UserUPN -ErrorAction Stop
-                Write-Host "Added $UserUPN to '$($Group.DisplayName)' <$($Group.Mail)> (Exchange DL)" -ForegroundColor Green
-                Log "Added $UserUPN to DL $($Group.DisplayName) <$($Group.Mail)>"
-            } catch {
-                Write-Warning "Failed to add $UserUPN to DL '$($Group.DisplayName)' <$($Group.Mail)>: $($_.Exception.Message)"
-                Log "Add DL member failed: $($_.Exception.Message)"
-            }
-            return
-        } else {
-            Write-Warning "Group '$($Group.DisplayName)' is a mail-enabled distribution list. Install ExchangeOnlineManagement and sign in to add members (Add-DistributionGroupMember). Skipping."
-            Log "Skipped DL membership for $($Group.DisplayName) <$($Group.Mail)> (EXO not available)."
-            return
+            New-MgGroupMember -GroupId $Group.Id -BodyParameter @{ "@odata.id"="https://graph.microsoft.com/v1.0/directoryObjects/$UserId"} -ErrorAction Stop | Out-Null
+            Write-Host "Added $UserUPN to '$($Group.DisplayName)' <$($Group.Mail)>." -ForegroundColor Green
+            Log "Added member: $UserUPN -> $($Group.DisplayName) <$($Group.Mail)>"
+        } catch {
+            Write-Warning "Failed to add $UserUPN to '$($Group.DisplayName)' <$($Group.Mail)>: $($_.Exception.Message)"
+            Log "Add member failed: $($_.Exception.Message)"
         }
+        return
     }
 
-    # Graph-supported group (Unified or Security)
+    # --- Mail-only DL path (Exchange Online required) ---
+    if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) {
+        Write-Warning "Group '$($Group.DisplayName)' is a mail-enabled Distribution List. Install ExchangeOnlineManagement and sign in to add members (Add-DistributionGroupMember). Skipping."
+        Log "Skipped DL membership for $($Group.DisplayName) <$($Group.Mail)> (EXO not available)."
+        return
+    }
+
+    # Connect once per session if needed
     try {
-        $members = Get-MgGroupMember -GroupId $Group.Id -All | Select-Object -ExpandProperty Id
-        if ($members -contains $UserId) {
-            Write-Host "$UserUPN is already in '$($Group.DisplayName)'. Skipping." -ForegroundColor Yellow
-            Log "Skipped: $UserUPN already in $($Group.DisplayName)"
-            return
+        if (-not (Get-ConnectionInformation)) {
+            Connect-ExchangeOnline -ShowBanner:$false | Out-Null
+            Log "Connected to Exchange Online for DL operations."
         }
-        New-MgGroupMember -GroupId $Group.Id -BodyParameter @{ "@odata.id"="https://graph.microsoft.com/v1.0/directoryObjects/$UserId"} -ErrorAction Stop | Out-Null
-        Write-Host "Added $UserUPN to '$($Group.DisplayName)' <$($Group.Mail)>" -ForegroundColor Green
-        Log "Added member: $UserUPN -> $($Group.DisplayName) <$($Group.Mail)>"
     } catch {
-        Write-Warning "Failed to add $UserUPN to '$($Group.DisplayName)' <$($Group.Mail)>: $($_.Exception.Message)"
-        Log "Add member failed: $($_.Exception.Message)"
+        Write-Warning "Could not connect to Exchange Online: $($_.Exception.Message)"
+        Log "EXO connect failed: $($_.Exception.Message)"
+        return
+    }
+
+    # Helper: wait for the Exchange recipient to exist (mailbox/mailuser/contact)
+    function Wait-EXORecipientReady {
+        param(
+            [string]$Identity,            # usually UPN or primary SMTP
+            [string]$ExternalDirObjectId, # AAD ObjectId (fallback search)
+            [int]$TimeoutSec = 900,       # 15 min
+            [int]$PollSec = 15
+        )
+        $deadline = (Get-Date).AddSeconds($TimeoutSec)
+        do {
+            try {
+                $rec = Get-EXORecipient -Identity $Identity -ErrorAction Stop
+                if ($rec) { return $true }
+            } catch {
+                # Try by ExternalDirectoryObjectId if Identity not found
+                try {
+                    $rec = Get-EXORecipient -Filter "ExternalDirectoryObjectId -eq '$ExternalDirObjectId'" -ErrorAction Stop
+                    if ($rec) { return $true }
+                } catch { }
+            }
+            Start-Sleep -Seconds $PollSec
+        } while ((Get-Date) -lt $deadline)
+        return $false
+    }
+
+    # If the recipient might not exist yet (brand-new user), wait up to 15 minutes
+    $ready = Wait-EXORecipientReady -Identity $UserUPN -ExternalDirObjectId $UserId -TimeoutSec 900 -PollSec 15
+    if (-not $ready) {
+        Write-Warning "Exchange recipient for $UserUPN not found after waiting. Skipping DL add for '$($Group.DisplayName)'."
+        Log "EXO recipient not ready for $UserUPN; skipped DL add to $($Group.DisplayName)."
+        return
+    }
+
+    # Try add; normalize common idempotent errors
+    try {
+        Add-DistributionGroupMember -Identity $Group.Mail -Member $UserUPN -ErrorAction Stop
+        Write-Host "Added $UserUPN to '$($Group.DisplayName)' <$($Group.Mail)> (Distribution List)" -ForegroundColor Green
+        Log "Added $UserUPN to DL $($Group.DisplayName) <$($Group.Mail)>"
+    } catch {
+        $msg = $_.Exception.Message
+        if ($msg -match 'already a member of the group') {
+            Write-Host "$UserUPN is already a member of '$($Group.DisplayName)'. Skipping." -ForegroundColor Yellow
+            Log "Skipped: already member of DL $($Group.DisplayName)"
+        } else {
+            Write-Warning "Failed to add $UserUPN to DL '$($Group.DisplayName)': $msg"
+            Log "Add DL member failed: $msg"
+        }
     }
 }
+
 
 
 # ----------------- Execution -----------------
@@ -353,8 +396,9 @@ $skuInfo = Resolve-Sku -SkuPartNumber $SkuPartNumber -SkuId $SkuId
 Write-Host "License SKU: $($skuInfo.PartNumber) | Available=$($skuInfo.Available)" -ForegroundColor Cyan
 
 $grpAll = Get-GroupByMail 'AllEmployees@sensapureflavors.com'
-$grpHQ  = Get-GroupByMail 'sensapureteam@sensapureflavors.com'
-$grpWH  = Get-GroupByMail 'production@sensapure.com'
+$grpAll2 = Get-GroupByMail 'sensapureteam@sensapureflavors.com'
+$grpOffice = Get-GroupByMail 'office@sensapure.com'
+$grpProd = Get-GroupByMail 'production@sensapure.com'
 
 # DryRun preview
 if ($DryRun) {
@@ -372,11 +416,61 @@ $null = Assign-License-IfAvailable -UserId $user.Id -SkuInfo $skuInfo
 
 # Add to groups
 Add-User-To-Group -Group $grpAll -UserId $user.Id -UserUPN $user.UserPrincipalName
-if ($OfficeType -eq 'HQ') {
-    Add-User-To-Group -Group $grpHQ -UserId $user.Id -UserUPN $user.UserPrincipalName
-} elseif ($OfficeType -eq 'Warehouse') {
-    Add-User-To-Group -Group $grpWH -UserId $user.Id -UserUPN $user.UserPrincipalName
-}
+Add-User-To-Group -Group $grpAll2 -UserId $user.Id -UserUPN $user.UserPrincipalName
+# if ($OfficeType -eq 'HQ') {
+#     Add-User-To-Group -Group $grpOffice
+# UserId $user.Id -UserUPN $user.UserPrincipalName
+# } elseif ($OfficeType -eq 'Warehouse') {
+#     Add-User-To-Group -Group $grpProd -UserId $user.Id -UserUPN $user.UserPrincipalName
+# }
+
+# Department-based group assignments
+# Production
+if ($Department -eq 'Dry Blending' -or 
+    $Department -eq 'Spray Dry' -or
+    $Department -eq 'Liquid' -or
+    $Department -eq 'Compounding' -or
+    $Department -eq 'Liquid/Compounding' -or
+    $Department -eq 'Sanitation' -or 
+    $Department -eq 'QA' -or
+    $Department -eq 'QC' -or
+    $Department -eq 'QA/QC' -or
+    $Department -eq 'Quality' -or
+    $Department -eq 'Quality Control' -or
+    $Department -eq 'Quality Assurance' -or
+    $Department -eq 'Warehouse' -or
+    $Department -eq 'Facilities' -or
+    $Department -eq 'Inventory Control' -or
+    $Department -eq 'Management' -or
+    $Department -eq 'Operations') {
+        Add-User-To-Group -Group $grpProd -UserId $user.Id -UserUPN $user.UserPrincipalName
+    }
+
+# Office
+if ($Department -eq 'Sales' -or
+    $Department -eq 'Marketing' -or
+    $Department -eq 'Sampling' -or
+    $Department -eq 'HR' -or
+    $Department -eq 'IT' -or
+    $Department -eq 'Supply Chain' -or
+    $Department -eq 'QA' -or
+    $Department -eq 'QC' -or
+    $Department -eq 'QA/QC' -or
+    $Department -eq 'Quality' -or
+    $Department -eq 'Quality Control' -or
+    $Department -eq 'Quality Assurance' -or
+    $Department -eq 'Finance' -or
+    $Department -eq 'Beverage' -or
+    $Department -eq 'Powder' -or
+    $Department -eq 'Flavor Lab' -or
+    $Department -eq 'Management' -or
+    $Department -eq 'Operations' -or
+    $Department -eq 'Pilot Plant' -or
+    $Department -eq 'Procurement' -or
+    $Department -eq 'R&D' -or
+    $Department -eq 'Regulatory') {
+        Add-User-To-Group -Group $grpOffice -UserId $user.Id -UserUPN $user.UserPrincipalName
+    }
 
 Write-Host "Cloud onboarding completed for $($user.UserPrincipalName)." -ForegroundColor Green
 Log "M365 onboarding complete for $($user.UserPrincipalName)"

@@ -45,25 +45,43 @@ $logFile = Join-Path $configDir 'onboarding.log'
 function Log { param([string]$Message) $stamp=(Get-Date).ToString('yyyy-MM-dd HH:mm:ss'); Add-Content -Path $logFile -Value "[$stamp] $Message" }
 
 try {
+    # New PowerShell window for AD onboarding (commented out for same-window execution)
+    ################################################################################
+    # Log "Starting AD step..."
+    # $adScript = Join-Path $base 'Add-SensapureAdUser.ps1'
+    # if (-not (Test-Path $adScript)) { throw "AD script not found: $adScript" }
+
+    # # Build a SINGLE array of strings for argument list (no nested arrays)
+    # $adArgs = @(
+    #     '-NoProfile',
+    #     '-ExecutionPolicy', 'Bypass',
+    #     # Keep the window open so you can see any messages during DryRun or errors; remove -NoExit later
+    #     # '-NoExit',
+    #     '-File', $adScript
+    # )
+    # if ($DryRun) { $adArgs += '-DryRun' }
+    # if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Verbose')) { $adArgs += '-Verbose' }
+
+    # Write-Host "Launching AD onboarding in a new PowerShell window..." -ForegroundColor Cyan
+    # Start-Process -FilePath 'powershell.exe' -ArgumentList $adArgs -WorkingDirectory $base -Wait
+
+    # Log ("AD step completed." + ($(if ($DryRun) { " (DryRun)" } else { "" })))
+    ################################################################################
+
+    
     Log "Starting AD step..."
     $adScript = Join-Path $base 'Add-SensapureAdUser.ps1'
     if (-not (Test-Path $adScript)) { throw "AD script not found: $adScript" }
 
-    # Build a SINGLE array of strings for argument list (no nested arrays)
-    $adArgs = @(
-        '-NoProfile',
-        '-ExecutionPolicy', 'Bypass',
-        # Keep the window open so you can see any messages during DryRun or errors; remove -NoExit later
-        # '-NoExit',
-        '-File', $adScript
-    )
-    if ($DryRun) { $adArgs += '-DryRun' }
-    if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Verbose')) { $adArgs += '-Verbose' }
+    # Build a clean splat for AD script (same window)
+    $adParams = @{}
+    if ($DryRun) { $adParams['DryRun'] = $true }
+    if ($PSCmdlet.MyInvocation.BoundParameters.ContainsKey('Verbose')) { $adParams['Verbose'] = $true }
 
-    Write-Host "Launching AD onboarding in a new PowerShell window..." -ForegroundColor Cyan
-    Start-Process -FilePath 'powershell.exe' -ArgumentList $adArgs -WorkingDirectory $base -Wait
-
+    Write-Host "Running AD onboarding (same window)..." -ForegroundColor Cyan
+    & $adScript @adParams
     Log ("AD step completed." + ($(if ($DryRun) { " (DryRun)" } else { "" })))
+
 
     # JSON path
     $jsonFile = Join-Path $configDir 'last_onboarding.json'
