@@ -46,7 +46,7 @@ Author: Gabriel Amaral (with M365 Copilot)
 
 [CmdletBinding()]
 param(
-    [string]$Server = 'ad.sensapure.com',
+    [string]$Server = '10.0.111.12',
     [string]$DefaultOU = 'OU=General,OU=Users,OU=Domain Users,DC=ad,DC=sensapure,DC=com',
     [string]$UPNSuffix = 'ad.sensapure.com',
     [string]$CloudDomain = 'sensapure.com',
@@ -325,8 +325,8 @@ if ($ManagerDN) {
 }
 
 # OfficeType prompt
-$OfficeType = Read-Host "Office type (HQ or Warehouse)"
-if ($OfficeType -notin @('HQ','Warehouse')) { Write-Warning "Invalid OfficeType. Defaulting to HQ."; $OfficeType='HQ' }
+$OfficeType = Read-Host "Office type (HQ or LH)"
+if ($OfficeType -notin @('HQ','LH', 'none', 'both')) { Write-Warning "Invalid OfficeType. Defaulting to HQ."; $OfficeType='HQ' }
 
 Write-Host ''
 Write-Host 'Review:' -ForegroundColor Cyan

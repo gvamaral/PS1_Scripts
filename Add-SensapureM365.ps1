@@ -303,6 +303,7 @@ $ManagerCloudUPN  = $info.ManagerCloudUPN
 if ([string]::IsNullOrWhiteSpace($CloudUPN)) { throw "CloudUserPrincipalName missing in $ConfigFile." }
 
 Log "Starting M365 onboarding for $CloudUPN (OfficeType=$OfficeType)"
+
 Connect-GraphSafe
 
 # Find cloud user
@@ -399,6 +400,8 @@ $grpAll = Get-GroupByMail 'AllEmployees@sensapureflavors.com'
 $grpAll2 = Get-GroupByMail 'sensapureteam@sensapureflavors.com'
 $grpOffice = Get-GroupByMail 'office@sensapure.com'
 $grpProd = Get-GroupByMail 'production@sensapure.com'
+$grpHQ = Get-GroupByMail 'slc@sensapure.com'
+$grpLH = Get-GroupByMail 'lehi@sensapure.com'
 
 # DryRun preview
 if ($DryRun) {
@@ -442,6 +445,9 @@ if ($Department -eq 'Dry Blending' -or
     $Department -eq 'Facilities' -or
     $Department -eq 'Inventory Control' -or
     $Department -eq 'Management' -or
+    $Department -eq 'Maintenance' -or
+    $Department -eq 'Engineering' -or
+    $Department -eq 'Maintenance/Engineering' -or
     $Department -eq 'Operations') {
         Add-User-To-Group -Group $grpProd -UserId $user.Id -UserUPN $user.UserPrincipalName
     }
@@ -468,9 +474,20 @@ if ($Department -eq 'Sales' -or
     $Department -eq 'Pilot Plant' -or
     $Department -eq 'Procurement' -or
     $Department -eq 'R&D' -or
-    $Department -eq 'Regulatory') {
+    $Department -eq 'Regulatory' -or
+    $Department -eq 'Bussiness Development') {
         Add-User-To-Group -Group $grpOffice -UserId $user.Id -UserUPN $user.UserPrincipalName
     }
-
+    
+if ($OfficeType -eq 'HQ') {
+    Add-User-To-Group -Group $grpHQ -UserId $user.Id -UserUPN $user.UserPrincipalName
+} elseif ($OfficeType -eq 'LH') {
+    Add-User-To-Group -Group $grpLH -UserId $user.Id -UserUPN $user.UserPrincipalName
+} elseif ($OfficeType -eq 'both') {
+    Add-User-To-Group -Group $grpHQ -UserId $user.Id -UserUPN $user.UserPrincipalName
+    Add-User-To-Group -Group $grpLH -UserId $user.Id -UserUPN $user.UserPrincipalName
+} elseif ($OfficeType -eq 'none') {
+    Write-Host "No office group assigned based on OfficeType='none'." -ForegroundColor Yellow
+}
 Write-Host "Cloud onboarding completed for $($user.UserPrincipalName)." -ForegroundColor Green
 Log "M365 onboarding complete for $($user.UserPrincipalName)"

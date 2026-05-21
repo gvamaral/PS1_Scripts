@@ -4,11 +4,26 @@ $suffix = "_UB"
 $folderPath = "S:\Raw Material Library"
 $goodLogPath = "C:\Users\$env:USERNAME\Documents\pdf_unblock_log\unblock_log_good.txt"
 $badLogPath = "C:\Users\$env:USERNAME\Documents\pdf_unblock_log\unblock_log_bad.txt"
+$fileServerIP = "10.0.111.12"
 
 # Create log directory if it doesn't exist
 $logDir = Split-Path -Path $badLogPath
 if (-not (Test-Path -Path $logDir)) {
     New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+}
+
+# Detect Lehi site by local IP (10.0.2xx.x subnets) and remap S: to IP if needed
+$isLehi = [bool](Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -match '^10\.0\.2\d{2}\.' })
+if ($isLehi) {
+    $sDrive = Get-PSDrive -Name S -ErrorAction SilentlyContinue
+    if ($sDrive -and $sDrive.DisplayRoot -and $sDrive.DisplayRoot -notmatch '^\\\\\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\\') {
+        Write-Host "Lehi site detected - remapping S: drive to use IP address..." -ForegroundColor Yellow
+        & net use S: /delete /y | Out-Null
+        & net use S: "\\$fileServerIP\sensa" /persistent:yes | Out-Null
+    } elseif (-not $sDrive) {
+        Write-Host "Lehi site detected - mapping S: drive to IP address..." -ForegroundColor Yellow
+        & net use S: "\\$fileServerIP\sensa" /persistent:yes | Out-Null
+    }
 }
 
 # Alert if folder path doesn't exist
