@@ -431,6 +431,7 @@ Add-User-To-Group -Group $grpAll2 -UserId $user.Id -UserUPN $user.UserPrincipalN
 # Production
 if ($Department -eq 'Dry Blending' -or 
     $Department -eq 'Spray Dry' -or
+    $Department -eq 'Production' -or
     $Department -eq 'Liquid' -or
     $Department -eq 'Compounding' -or
     $Department -eq 'Liquid/Compounding' -or
